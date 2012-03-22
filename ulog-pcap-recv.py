@@ -2,6 +2,15 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
+####################
+
+# Must be the same on sender
+pcap_header = ( 'd4c3b2a102000400a0ab'
+	'ffff000000000000010065000000' ).decode('hex')
+
+####################
+
+
 def main():
 	import argparse
 	parser = argparse.ArgumentParser(
@@ -13,6 +22,7 @@ def main():
 
 	from contextlib import closing
 	from time import sleep
+	from zlib import decompress
 	import errno, logging
 
 	logging.basicConfig(
@@ -24,7 +34,6 @@ def main():
 	optz.reopen = True # only fifo dst for now
 
 	import zmq
-
 	context = zmq.Context()
 
 	with closing(context.socket(zmq.PULL)) as src:
@@ -34,9 +43,12 @@ def main():
 			try:
 				with open(optz.dst, 'wb') as dst:
 					log.debug('(Re-)opened destination path')
+					dst.write(pcap_header)
+
 					while True:
 						pkt = src.recv()
-						dst.write(pkt)
+						while src.getsockopt(zmq.RCVMORE): pkt += src.recv()
+						dst.write(decompress(pkt[1:]) if pkt[0] == '\x01' else pkt[1:])
 			except OSError as err:
 				if err.errno == errno.ENOENT: break
 			if not optz.reopen: break
