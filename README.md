@@ -53,5 +53,6 @@ otherwise control real traffic)
 Requirements
 --------------------
 
-* Python 2.7 (with zlib support if "low watermark" is enabled)
+* Python 2.7 with ctypes support, and zlib if "low watermark" is enabled
+* [libpcap.so.1](http://www.tcpdump.org/)
 * [pyzmq](https://github.com/zeromq/pyzmq)
