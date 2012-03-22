@@ -2,14 +2,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
-####################
-
-# Must be the same on sender/receiver
-pcap_header = ( 'd4c3b2a102000400a0ab'
-	'ffff000000000000010065000000' ).decode('hex')
-
-####################
-
 
 def main():
 	import argparse
@@ -23,7 +15,7 @@ def main():
 	from contextlib import closing
 	from time import sleep
 	from zlib import decompress
-	import errno, logging
+	import os, logging, pcap
 
 	logging.basicConfig(
 		level=logging.DEBUG if optz.debug else logging.WARNING,
@@ -42,15 +34,15 @@ def main():
 		while True:
 			try:
 				with open(optz.dst, 'wb') as dst:
+					os.dup2(dst.fileno(), 1)
+					pcap_dst = pcap.writer()
 					log.debug('(Re-)opened destination path')
-					dst.write(pcap_header)
 
 					while True:
 						pkt = src.recv()
 						while src.getsockopt(zmq.RCVMORE): pkt += src.recv()
-						dst.write(decompress(pkt[1:]) if pkt[0] == '\x01' else pkt[1:])
-			except OSError as err:
-				if err.errno == errno.ENOENT: break
+						pcap_dst.send(decompress(pkt[1:]) if pkt[0] == '\x01' else pkt[1:])
+			except pcap.PcapError as err: log.exception('Error from libpcap')
 			if not optz.reopen: break
 			sleep(1)
 

@@ -54,7 +54,7 @@ libpcap.pcap_next_ex.argtypes = ctypes.c_void_p,\
 	ctypes.POINTER(ctypes.POINTER(ctypes.c_char))
 
 
-def read(path):
+def reader(path='-', opaque=True):
 	errbuff = ctypes.create_string_buffer(256)
 	src = libpcap.pcap_open_offline(path, errbuff)
 	if not src: raise PcapError(errbuff.value)
@@ -65,10 +65,10 @@ def read(path):
 			val = libpcap.pcap_next_ex(src, ctypes.byref(pkt_hdr_p), pkt_p)
 			pkt_hdr = pkt_hdr_p.contents
 			pkt = pkt_p[:pkt_hdr.caplen]
-			yield pkt_hdr, pkt
+			yield (dumps(pkt_hdr, pkt) if opaque else (pkt_hdr, pkt))
 	finally: libpcap.pcap_close(src)
 
-def write(path):
+def writer(path='-', opaque=True):
 	dst = libpcap.pcap_open_dead(0, 65535) # linktype=DLT_NULL, snaplen
 	if not dst: raise PcapError
 
@@ -76,5 +76,6 @@ def write(path):
 	dumper = libpcap.pcap_dump_open(dst, path)
 
 	while True:
-		pkt_hdr, pkt = yield
+		dump = yield
+		pkt_hdr, pkt = loads(dump) if opaque else dump
 		libpcap.pcap_dump(dumper, ctypes.byref(pkt_hdr), pkt)

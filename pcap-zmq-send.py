@@ -2,17 +2,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
-####################
-
-# Must be the same on sender/receiver
-pcap_header = ( 'd4c3b2a102000400a0ab'
-	'ffff000000000000010065000000' ).decode('hex')
-
-####################
-
 
 def pipe(src, dst, win, lwm, hwm, log):
-	from struct import unpack
 	from time import time
 	from zlib import compressobj
 
@@ -23,13 +14,7 @@ def pipe(src, dst, win, lwm, hwm, log):
 	send = True
 	pcap_hdr_len = 8 + 4 + 4 # pcap_timeval 2xint32, caplen uint32, len uint32
 
-	while True:
-		pkt_hdr = src.read(pcap_hdr_len)
-		if len(pkt_hdr) < pcap_hdr_len: break
-
-		pkt_len, = unpack('=I', pkt_hdr[8:12])
-		pkt = pkt_hdr + src.read(pkt_len)
-		pkt_len += pcap_hdr_len
+	for pkt in src:
 
 		if win and bs > win:
 			ts_now = time()
@@ -53,9 +38,9 @@ def pipe(src, dst, win, lwm, hwm, log):
 		elif send is None: pass # drop packet
 		else: # compress packet
 			pkt = comp.compress(pkt)
-			buff[bs:], pkt_len = pkt, len(pkt)
+			buff[bs:] = pkt
 
-		if win: bs += pkt_len
+		if win: bs += len(pkt)
 
 
 def main():
@@ -86,7 +71,7 @@ def main():
 
 	from contextlib import closing
 	from time import sleep
-	import os, stat, errno, logging
+	import os, stat, errno, logging, pcap
 
 	logging.basicConfig(
 		level=logging.DEBUG if optz.debug else logging.WARNING,
@@ -119,12 +104,13 @@ def main():
 		while True:
 			try:
 				with open(optz.src, 'rb') as src:
+					os.dup2(src.fileno(), 0) # replace stdin
+					pcap_src = pcap.reader()
 					log.debug('(Re-)opened source path')
-					assert src.read(24) == pcap_header
-					pipe(src, send, win=int(optz.wm_interval), lwm=optz.lwm, hwm=optz.hwm, log=log)
-
-			except OSError as err:
-				if err.errno == errno.ENOENT: break
+					pipe( pcap_src, send,
+						win=int(optz.wm_interval),
+						lwm=optz.lwm, hwm=optz.hwm, log=log )
+			except pcap.PcapError as err: log.exception('Error from libpcap')
 			if not optz.reopen: break
 			sleep(1)
 
