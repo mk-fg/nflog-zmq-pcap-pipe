@@ -60,7 +60,7 @@ def pipe(src, dst, win, lwm, hwm, log):
 
 def main():
 	import argparse
-	parser = argparse.ArgumentParser(description='Pipe pcap stream via UDP.')
+	parser = argparse.ArgumentParser(description='Pipe pcap stream via zeromq.')
 	parser.add_argument('src', help='Path to file/fifo to read stream from.')
 	parser.add_argument('dst', help='ZMQ socket address to send data to.')
 	parser.add_argument('--reopen', action='store_true',

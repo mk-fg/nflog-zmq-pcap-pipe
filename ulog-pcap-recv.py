@@ -14,7 +14,7 @@ pcap_header = ( 'd4c3b2a102000400a0ab'
 def main():
 	import argparse
 	parser = argparse.ArgumentParser(
-		description='Receive pcap stream from UDP and push it to a fifo socket.')
+		description='Receive pcap stream from zeromq and push it to a fifo socket.')
 	parser.add_argument('src', help='ZMQ socket address to bind to.')
 	parser.add_argument('dst', help='Path to fifo to write stream to.')
 	parser.add_argument('--debug', action='store_true', help='Verbose operation mode.')
