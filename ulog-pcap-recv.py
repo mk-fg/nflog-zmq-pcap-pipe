@@ -4,7 +4,7 @@ from __future__ import print_function
 
 ####################
 
-# Must be the same on sender
+# Must be the same on sender/receiver
 pcap_header = ( 'd4c3b2a102000400a0ab'
 	'ffff000000000000010065000000' ).decode('hex')
 
