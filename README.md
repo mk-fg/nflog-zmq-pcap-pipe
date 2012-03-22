@@ -22,6 +22,14 @@ latency, setup complexity and availability issues.
 pcap dump in my case is generated via NFLOG netfilter target and [ulogd
 2.x](http://www.netfilter.org/projects/ulogd/) userspace daemon.
 
+If nothing receives the flow on the other side (or has any kind of temporary
+network problems), packets are buffered up to "--zmq-buffer" (ZMQ_HWM) count and
+just dropped afterwards - overall goal is to make the channel as robust and
+easy-to-maintain as possible, and [ZeroMQ](http://zeromq.org/) helps a lot here.
+
+Multiple senders (possibly from multiple hosts) can be connected to one
+receiver.
+
 
 Usage
 --------------------
