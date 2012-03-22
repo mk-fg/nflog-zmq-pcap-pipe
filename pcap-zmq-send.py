@@ -48,7 +48,7 @@ def main():
 	parser = argparse.ArgumentParser(description='Pipe pcap stream via zeromq.')
 	parser.add_argument('src', help='Path to file/fifo to read stream from.')
 	parser.add_argument('dst', help='ZMQ socket address to send data to.')
-	parser.add_argument('--reopen', action='store_true',
+	parser.add_argument('--reopen', action='store_true', default=None,
 		help='Keep re-opening the path on eof or any read errors (as long as it exists).'
 			' Used implicitly for FIFO sockets (to allow writer process to be restarted).')
 

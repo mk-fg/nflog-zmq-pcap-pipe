@@ -62,7 +62,7 @@ def reader(path='-', opaque=True):
 		libpcap.pcap_next_ex.errcheck = ft.partial(ReadCheck, src)
 		pkt_hdr_p, pkt_p = ctypes.POINTER(pcap_pkthdr)(), ctypes.POINTER(ctypes.c_char)()
 		while True:
-			val = libpcap.pcap_next_ex(src, ctypes.byref(pkt_hdr_p), pkt_p)
+			libpcap.pcap_next_ex(src, ctypes.byref(pkt_hdr_p), pkt_p)
 			pkt_hdr = pkt_hdr_p.contents
 			pkt = pkt_p[:pkt_hdr.caplen]
 			yield (dumps(pkt_hdr, pkt) if opaque else (pkt_hdr, pkt))
