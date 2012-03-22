@@ -71,11 +71,11 @@ def reader(path='-', opaque=True):
 def writer(path='-', opaque=True):
 	dst = libpcap.pcap_open_dead(0, 65535) # linktype=DLT_NULL, snaplen
 	if not dst: raise PcapError
-
-	libpcap.pcap_dump_open.errcheck = ft.partial(NullCheck, dst)
-	dumper = libpcap.pcap_dump_open(dst, path)
-
-	while True:
-		dump = yield
-		pkt_hdr, pkt = loads(dump) if opaque else dump
-		libpcap.pcap_dump(dumper, ctypes.byref(pkt_hdr), pkt)
+	try:
+		libpcap.pcap_dump_open.errcheck = ft.partial(NullCheck, dst)
+		dumper = libpcap.pcap_dump_open(dst, path)
+		while True:
+			dump = yield
+			pkt_hdr, pkt = loads(dump) if opaque else dump
+			libpcap.pcap_dump(dumper, ctypes.byref(pkt_hdr), pkt)
+	finally: libpcap.pcap_close(dst)
