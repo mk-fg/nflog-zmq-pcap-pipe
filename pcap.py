@@ -3,7 +3,8 @@
 'ctypes wrapper for libpcap'
 
 import itertools as it, operator as op, functools as ft
-import ctypes
+import ctypes, xdrlib
+
 
 class PcapError(Exception): pass
 
@@ -17,6 +18,32 @@ class pcap_pkthdr(ctypes.Structure):
 		('caplen', ctypes.c_uint32),
 		('len', ctypes.c_uint32) ]
 
+
+def ReadCheck(pcap_t, err, func, args):
+	if err == -1: raise PcapError(libpcap.pcap_geterr(pcap_t))
+	elif err == -2: raise StopIteration()
+	return err
+def NullCheck(pcap_t, res, func, args):
+	if not res: raise PcapError(libpcap.pcap_geterr(pcap_t))
+	return res
+
+
+def dumps(pkt_hdr, pkt):
+	dump = xdrlib.Packer()
+	dump.pack_farray(2, [pkt_hdr.ts.tv_sec, pkt_hdr.ts.tv_usec], dump.pack_int)
+	dump.pack_farray(2, [pkt_hdr.caplen, pkt_hdr.len], dump.pack_uint)
+	dump.pack_bytes(pkt)
+	return dump.get_buffer()
+
+def loads(dump):
+	dump = xdrlib.Unpacker(dump)
+	pkt_hdr = pcap_pkthdr()
+	pkt_hdr.ts.tv_sec, pkt_hdr.ts.tv_usec = dump.unpack_farray(2, dump.unpack_int)
+	pkt_hdr.caplen, pkt_hdr.len = dump.unpack_farray(2, dump.unpack_uint)
+	pkt = dump.unpack_bytes()
+	return pkt_hdr, pkt
+
+
 libpcap = ctypes.CDLL('libpcap.so.1')
 libpcap.pcap_geterr.restype = ctypes.c_char_p
 libpcap.pcap_open_offline.restype = ctypes.c_void_p
@@ -26,13 +53,6 @@ libpcap.pcap_next_ex.argtypes = ctypes.c_void_p,\
 	ctypes.POINTER(ctypes.POINTER(pcap_pkthdr)),\
 	ctypes.POINTER(ctypes.POINTER(ctypes.c_char))
 
-def ReadCheck(pcap_t, err, func, args):
-	if err == -1: raise PcapError(libpcap.pcap_geterr(pcap_t))
-	elif err == -2: raise StopIteration()
-	return err
-def NullCheck(pcap_t, res, func, args):
-	if not res: raise PcapError(libpcap.pcap_geterr(pcap_t))
-	return res
 
 def read(path):
 	errbuff = ctypes.create_string_buffer(256)
