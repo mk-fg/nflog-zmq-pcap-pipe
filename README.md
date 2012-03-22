@@ -1,4 +1,4 @@
-pcap-zmq-pipe: Tool to send pcap stream/dump over network (0mq) for real-time (or close to) analysis
+pcap-zmq-pipe: tool to send pcap stream/dump over network (0mq) for real-time (or close to) analysis
 --------------------
 
 Simple script to allow selective dumping of packets with iptables/ulogd2 or
