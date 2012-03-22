@@ -40,3 +40,10 @@ ids.host:
 
 ("--treat-drop-as-alert" option is useful because snort can't really "drop" or
 otherwise control real traffic)
+
+
+Requirements
+--------------------
+
+* Python 2.7 (with zlib support if "low watermark" is enabled)
+* [pyzmq](https://github.com/zeromq/pyzmq)
