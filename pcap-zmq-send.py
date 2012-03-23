@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 
-def pipe(src, dst, win, lwm, hwm, log):
+def pipe(cb, win, lwm, hwm, log):
 	from time import time
 	from zlib import compressobj
 
@@ -12,9 +12,9 @@ def pipe(src, dst, win, lwm, hwm, log):
 		bs, ts, rate = 0, time(), 0
 		buff, comp = bytearray(win + 65535), None
 	send = True
-	pcap_hdr_len = 8 + 4 + 4 # pcap_timeval 2xint32, caplen uint32, len uint32
 
-	for pkt in src:
+	while True:
+		pkt = yield
 
 		if win and bs > win:
 			ts_now = time()
@@ -26,7 +26,7 @@ def pipe(src, dst, win, lwm, hwm, log):
 				log.warn('Dropping packets due to hwm (rate: {:.2f})'.format(rate / 2**20))
 				send = None
 			else:
-				if send is False: dst('\x01' + bytes(buff[:bs]) + comp.flush())
+				if send is False: cb('\x01' + bytes(buff[:bs]) + comp.flush())
 				if lwm and rate > lwm:
 					comp = compressobj()
 					send = False
@@ -34,7 +34,7 @@ def pipe(src, dst, win, lwm, hwm, log):
 
 			bs, ts = 0, ts_now
 
-		if send: dst('\x00' + pkt)
+		if send: cb('\x00' + pkt)
 		elif send is None: pass # drop packet
 		else: # compress packet
 			pkt = comp.compress(pkt)
@@ -43,14 +43,31 @@ def pipe(src, dst, win, lwm, hwm, log):
 		if win: bs += len(pkt)
 
 
+def nflog_loop(qids, cb):
+	from socket import AF_INET, AF_INET6
+	import nflog
+
+	log = nflog.log()
+	log.open()
+	log.bind(AF_INET)
+	log.bind(AF_INET6)
+
+	try:
+		log.set_callback(cb)
+		for qid in qids: log.create_queue(qid)
+		while True: log.try_run()
+
+	finally:
+		log.unbind(AF_INET)
+		log.unbind(AF_INET6)
+		log.close()
+
+
 def main():
 	import argparse
-	parser = argparse.ArgumentParser(description='Pipe pcap stream via zeromq.')
-	parser.add_argument('src', help='Path to file/fifo to read stream from.')
+	parser = argparse.ArgumentParser(description='Pipe nflog packet stream to zeromq.')
+	parser.add_argument('src', help='Comma-separated list of nflog groups to receive.')
 	parser.add_argument('dst', help='ZMQ socket address to send data to.')
-	parser.add_argument('--reopen', action='store_true', default=None,
-		help='Keep re-opening the path on eof or any read errors (as long as it exists).'
-			' Used implicitly for FIFO sockets (to allow writer process to be restarted).')
 
 	parser.add_argument('--lwm', type=float, default=1.0,
 		help='Low watermark - gzip packets after MiB/s'
@@ -70,8 +87,7 @@ def main():
 	optz = parser.parse_args()
 
 	from contextlib import closing
-	from time import sleep
-	import os, stat, errno, logging, pcap
+	import os, errno, logging, pcap
 
 	logging.basicConfig(
 		level=logging.DEBUG if optz.debug else logging.WARNING,
@@ -85,36 +101,32 @@ def main():
 	if optz.wm_interval is None:
 		optz.wm_interval = max(optz.hwm * 2, optz.lwm * 4)
 	else: optz.wm_interval *= 2**20
-	if optz.reopen is None:
-		optz.reopen = stat.S_ISFIFO(os.stat(optz.src).st_mode)
 
 	import zmq
 	context = zmq.Context()
 
-	with closing(context.socket(zmq.PUSH)) as dst:
-		dst.setsockopt(zmq.HWM, optz.zmq_buffer)
-		dst.setsockopt(zmq.LINGER, 0) # it's lossy either way
-		dst.connect(optz.dst)
+	try:
+		with closing(context.socket(zmq.PUSH)) as dst:
+			dst.setsockopt(zmq.HWM, optz.zmq_buffer)
+			dst.setsockopt(zmq.LINGER, 0) # it's lossy either way
+			dst.connect(optz.dst)
 
-		def send(msg, dst=dst):
-			try: dst.send(msg, zmq.NOBLOCK)
-			except zmq.ZMQError as err:
-				if err.errno != errno.EAGAIN: raise
+			def send_zmq(msg, dst=dst):
+				try: dst.send(msg, zmq.NOBLOCK)
+				except zmq.ZMQError as err:
+					if err.errno != errno.EAGAIN: raise
 
-		while True:
-			try:
-				with open(optz.src, 'rb') as src:
-					os.dup2(src.fileno(), 0) # replace stdin
-					pcap_src = pcap.reader()
-					log.debug('(Re-)opened source path')
-					pipe( pcap_src, send,
-						win=int(optz.wm_interval),
-						lwm=optz.lwm, hwm=optz.hwm, log=log )
-			except pcap.PcapError as err: log.exception('Error from libpcap')
-			if not optz.reopen: break
-			sleep(1)
+			queue = pipe( send_zmq, log=log,
+				win=int(optz.wm_interval), lwm=optz.lwm, hwm=optz.hwm )
+			queue.send(None)
 
-	log.debug('Finishing')
-	context.term()
+			log.debug('Entering NFLOG reader loop')
+			nflog_loop( map(int, optz.src.split(',')),
+				lambda pkt_id, pkt, q=queue:\
+					q.send(pcap.construct(pkt.get_data(), pkt_len=pkt.get_length())) )
+
+	finally:
+		log.debug('Finishing')
+		context.term()
 
 if __name__ == '__main__': main()
