@@ -31,7 +31,7 @@ def libnflog_init():
 	return libnflog
 
 
-def nflog_generator(qids):
+def nflog_generator(qids, pf=(socket.AF_INET, socket.AF_INET6)):
 	'''Generator that yields:
 		- on first iteration - netlink fd that can be poll'ed
 			or integrated into some event loop (twisted, gevent, ...)
@@ -41,36 +41,34 @@ def nflog_generator(qids):
 
 	libnflog = libnflog_init()
 	handle = libnflog.nflog_open()
-	libnflog.nflog_unbind_pf(handle, socket.AF_INET)
-	libnflog.nflog_unbind_pf(handle, socket.AF_INET6)
-	libnflog.nflog_bind_pf(handle, socket.AF_INET)
-	libnflog.nflog_bind_pf(handle, socket.AF_INET6)
+
+	for pf in (pf if not isinstance(pf, int) else [pf]):
+		libnflog.nflog_unbind_pf(handle, pf)
+		libnflog.nflog_bind_pf(handle, pf)
 
 	cb_result = list() # pity there's no "nonlocal" in py2.X
 	def callback( qh, nfmsg, nfad, res=cb_result,
-			pkt=ctypes.POINTER(ctypes.c_char)() ):
+			pkt=ctypes.pointer(ctypes.POINTER(ctypes.c_char)()) ):
 		# TODO: return some useful packet attributes?
-		res.append(pkt[:libnflog.nflog_get_payload(nfad, ctypes.byref(pkt))])
+		res.append(pkt.contents[:libnflog.nflog_get_payload(nfad, pkt)])
 
 	nflog_cb_t = ctypes.CFUNCTYPE( ctypes.c_void_p,
 		ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p )
 	c_cb = nflog_cb_t(callback)
 
-	for qid in qids:
+	for qid in (qids if not isinstance(qids, int) else [qids]):
 		qh = libnflog.nflog_bind_group(handle, qid)
 		libnflog.nflog_set_mode(qh, 0x2, 0xffff) # NFULNL_COPY_PACKET
 		libnflog.nflog_callback_register(qh, c_cb)
 
 	fd = libnflog.nflog_fd(handle)
-	def handle_packet( fd=fd, handle=handle,
-			buff=ctypes.create_string_buffer(256) ):
-		libnflog.nflog_handle_packet(
-			handle, buff, libnflog.recv(fd, buff, 256, 0) )
+	buff = ctypes.create_string_buffer(256)
 
-	res = fd # first yield is an fd, for poll(), if needed
+	res = fd # yield fd for poll() on first iteration
 	while True:
 		yield res
-		handle_packet()
+		libnflog.nflog_handle_packet(
+			handle, buff, libnflog.recv(fd, buff, 256, 0) )
 		try: res = cb_result.pop()
 		except IndexError: res = None
 
@@ -80,4 +78,5 @@ if __name__ == '__main__':
 	fd = next(src)
 	for pkt in src:
 		if pkt is None: continue
-		print('Got packet, len: {}'.format(len(pkt)))
+		print('Got packet, len:', len(pkt))
+		# print('Payload:', pkt.encode('hex'))
