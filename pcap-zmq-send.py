@@ -69,17 +69,21 @@ def main():
 	parser.add_argument('src', help='Comma-separated list of nflog groups to receive.')
 	parser.add_argument('dst', help='ZMQ socket address to send data to.')
 
-	parser.add_argument('--lwm', type=float, default=1.0,
+	parser.add_argument('--lwm',
+		type=float, metavar='MiB/s', default=1.0,
 		help='Low watermark - gzip packets after MiB/s'
 			' (on the output to zmq) exceeds this value (default: %(default)s, 0 - disable).')
-	parser.add_argument('--hwm', type=float, default=5.0,
+	parser.add_argument('--hwm',
+		type=float, metavar='MiB/s', default=5.0,
 		help='High watermark - drop packets after MiB/s'
 			' (on the output to zmq) exceeds this value (default: %(default)s, 0 - disable).')
-	parser.add_argument('--wm-interval', type=float, metavar='MiB',
+	parser.add_argument('--wm-interval',
+		type=float, metavar='MiB',
 		help='After how many MiB throughput gets recalculated,'
 			' checked and (possibly) compressed (default: max(2 * hwm, 4 * lwm)).')
 
-	parser.add_argument('--zmq-buffer', type=int, default=100,
+	parser.add_argument('--zmq-buffer',
+		type=int, metavar='msg_count', default=30,
 		help='ZMQ_HWM for the socket - number of packets to'
 			' buffer in RAM before dropping (default: %(default)s).')
 
