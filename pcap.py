@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 
 'ctypes wrapper for libpcap'
 
@@ -59,14 +60,16 @@ def construct(pkt, pkt_len=None, ts=None):
 
 
 libpcap = None
-def load_libpcap():
+def libpcap_init():
 	global libpcap
 	if not libpcap:
 		libpcap = ctypes.CDLL('libpcap.so.1')
+
 		libpcap.pcap_geterr.restype = ctypes.c_char_p
 		libpcap.pcap_open_offline.restype = ctypes.c_void_p
 		libpcap.pcap_open_dead.restype = ctypes.c_void_p
 		libpcap.pcap_dump_open.restype = ctypes.c_void_p
+
 		libpcap.pcap_next_ex.argtypes = ctypes.c_void_p,\
 			ctypes.POINTER(ctypes.POINTER(c_pcap_pkthdr)),\
 			ctypes.POINTER(ctypes.POINTER(ctypes.c_char))
@@ -74,7 +77,7 @@ def load_libpcap():
 
 
 def reader(path='-', opaque=True):
-	libpcap = load_libpcap()
+	libpcap = libpcap_init()
 	errbuff = ctypes.create_string_buffer(256)
 	src = libpcap.pcap_open_offline(path, errbuff)
 	if not src: raise PcapError(errbuff.value)
@@ -90,7 +93,7 @@ def reader(path='-', opaque=True):
 	finally: libpcap.pcap_close(src)
 
 def writer(path='-', opaque=True):
-	libpcap = load_libpcap()
+	libpcap = libpcap_init()
 	dst = libpcap.pcap_open_dead(0, 65535) # linktype=DLT_NULL, snaplen
 	if not dst: raise PcapError
 	try:
