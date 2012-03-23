@@ -33,8 +33,9 @@ def libnflog_init():
 
 def nflog_generator(qids):
 	'''Generator that yields:
-		- netlink fd that can be poll'ed on first iteration
-		- on all subsequent iterations, it does recv() on that fd,
+		- on first iteration - netlink fd that can be poll'ed
+			or integrated into some event loop (twisted, gevent, ...)
+		- on all subsequent iterations it does recv() on that fd,
 			returning either None (if no packet can be assembled yet)
 			or captured packet payload.'''
 
@@ -48,8 +49,8 @@ def nflog_generator(qids):
 	cb_result = list() # pity there's no "nonlocal" in py2.X
 	def callback( qh, nfmsg, nfad, res=cb_result,
 			pkt=ctypes.POINTER(ctypes.c_char)() ):
-		pkt_len = libnflog.nflog_get_payload(nfad, ctypes.byref(pkt))
-		res.append(pkt[:pkt_len])
+		# TODO: return some useful packet attributes?
+		res.append(pkt[:libnflog.nflog_get_payload(nfad, ctypes.byref(pkt))])
 
 	nflog_cb_t = ctypes.CFUNCTYPE( ctypes.c_void_p,
 		ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p )
