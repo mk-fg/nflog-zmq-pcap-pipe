@@ -4,10 +4,12 @@ from __future__ import print_function
 'ctypes wrapper for libnetfilter_log'
 
 import itertools as it, operator as op, functools as ft
-import ctypes, socket
+import os, errno, ctypes, socket, logging
+
+log = logging.getLogger('nflog')
 
 
-class NFLogError(Exception): pass
+class NFLogError(OSError): pass
 
 class c_nflog_timeval(ctypes.Structure):
 	_fields_ = [
@@ -15,8 +17,9 @@ class c_nflog_timeval(ctypes.Structure):
 		('tv_usec', ctypes.c_long) ]
 
 def _chk_int(res, func, args, gt0=False):
-	if res < 0: raise NFLogError()
-	if gt0 and res == 0: raise NFLogError()
+	if res < 0 or (gt0 and res == 0):
+		errno_ = ctypes.get_errno()
+		raise NFLogError(errno_, os.strerror(errno_))
 	return res
 
 
@@ -24,7 +27,7 @@ libnflog = None
 def libnflog_init():
 	global libnflog
 	if not libnflog:
-		libnflog = ctypes.CDLL('libnetfilter_log.so.1')
+		libnflog = ctypes.CDLL('libnetfilter_log.so.1', use_errno=True)
 
 		libnflog.nflog_open.restype = ctypes.c_void_p
 		libnflog.nflog_bind_group.restype = ctypes.c_void_p
@@ -69,7 +72,8 @@ def nflog_generator(qids,
 
 	def callback( qh, nfmsg, nfad, extra_attrs=extra_attrs,
 			pkt=ctypes.pointer(ctypes.POINTER(ctypes.c_char)()),
-			ts=ctypes.pointer(c_nflog_timeval()) ):
+			ts=ctypes.pointer(c_nflog_timeval()),
+			ts_err_mask=frozenset([0, errno.EAGAIN]) ):
 		global _cb_result
 		try:
 			pkt_len = libnflog.nflog_get_payload(nfad, pkt)
@@ -79,8 +83,11 @@ def nflog_generator(qids,
 				for attr in extra_attrs:
 					if attr == 'len': _cb_result.append(pkt_len) # wtf4? just looks nicer than len(pkt)
 					elif attr == 'ts':
-						try: libnflog.nflog_get_timestamp(nfad, ts) # it fails 19/20, no idea why
-						except NFLogError: _cb_result.append(None)
+						# Fails quite often (EAGAIN, SUCCESS, ...), no idea why
+						try: libnflog.nflog_get_timestamp(nfad, ts)
+						except NFLogError as err:
+							if err.errno not in ts_err_mask: raise
+							_cb_result.append(None)
 						else: _cb_result.append(ts.contents.tv_sec + ts.contents.tv_usec * 1e-6)
 					else: raise NotImplementedError('Unknown nflog attribute: {}'.format(attr))
 		except:
