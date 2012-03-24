@@ -51,3 +51,14 @@ Requirements
 * [libnetfilter_log.so.1](http://netfilter.org/projects/libnetfilter_log) on the sending side
 * [libpcap.so.1](http://www.tcpdump.org/) on the receiving side
 * [pyzmq](https://github.com/zeromq/pyzmq)
+
+
+Why ctypes (and not, say, [nflog-bindings](https://www.wzdftpd.net/redmine/projects/nflog-bindings))?
+--------------------
+
+* I'm much more comfortable writing python than C or cython
+* nflog-bindings leaks RAM like titanic, uses printf() in the code (and for each
+  captured packet, no less), horribly incomplete and buggy (there is an
+  nflog-bindings-based implementation in git-log)
+* No extra deps, consistency
+* Better support in non-cPython
