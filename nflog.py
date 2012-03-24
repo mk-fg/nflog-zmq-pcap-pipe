@@ -9,6 +9,11 @@ import ctypes, socket
 
 class NFLogError(Exception): pass
 
+class c_nflog_timeval(ctypes.Structure):
+	_fields_ = [
+		('tv_sec', ctypes.c_long),
+		('tv_usec', ctypes.c_long) ]
+
 def _chk_int(res, func, args, gt0=False):
 	if res < 0: raise NFLogError()
 	if gt0 and res == 0: raise NFLogError()
@@ -28,16 +33,23 @@ def libnflog_init():
 		libnflog.nflog_bind_pf.errcheck = _chk_int
 		libnflog.nflog_set_mode.errcheck = _chk_int
 		libnflog.recv.errcheck = ft.partial(_chk_int, gt0=True)
+		libnflog.nflog_get_payload.errcheck = _chk_int
+		libnflog.nflog_get_timestamp.errcheck = _chk_int
 	return libnflog
 
 
-def nflog_generator(qids, pf=(socket.AF_INET, socket.AF_INET6)):
+_cb_result = None # pity there's no "nonlocal" in py2.X
+
+def nflog_generator(qids,
+		pf=(socket.AF_INET, socket.AF_INET6),
+		extra_attrs=None ):
 	'''Generator that yields:
 		- on first iteration - netlink fd that can be poll'ed
 			or integrated into some event loop (twisted, gevent, ...)
 		- on all subsequent iterations it does recv() on that fd,
 			returning either None (if no packet can be assembled yet)
 			or captured packet payload.'''
+	global _cb_result
 
 	libnflog = libnflog_init()
 	handle = libnflog.nflog_open()
@@ -46,11 +58,27 @@ def nflog_generator(qids, pf=(socket.AF_INET, socket.AF_INET6)):
 		libnflog.nflog_unbind_pf(handle, pf)
 		libnflog.nflog_bind_pf(handle, pf)
 
-	cb_result = list() # pity there's no "nonlocal" in py2.X
-	def callback( qh, nfmsg, nfad, res=cb_result,
-			pkt=ctypes.pointer(ctypes.POINTER(ctypes.c_char)()) ):
-		# TODO: return some useful packet attributes?
-		res.append(pkt.contents[:libnflog.nflog_get_payload(nfad, pkt)])
+	if isinstance(extra_attrs, bytes): extra_attrs = [extra_attrs]
+
+	def callback( qh, nfmsg, nfad, extra_attrs=extra_attrs,
+			pkt=ctypes.pointer(ctypes.POINTER(ctypes.c_char)()),
+			ts=ctypes.pointer(c_nflog_timeval()) ):
+		global _cb_result
+		try:
+			pkt_len = libnflog.nflog_get_payload(nfad, pkt)
+			_cb_result = pkt.contents[:pkt_len]
+			if extra_attrs:
+				_cb_result = [_cb_result]
+				for attr in extra_attrs:
+					if attr == 'len': _cb_result.append(pkt_len) # wtf4? just looks nicer than len(pkt)
+					elif attr == 'ts':
+						try: libnflog.nflog_get_timestamp(nfad, ts) # it fails 19/20, no idea why
+						except NFLogError: _cb_result.append(None)
+						else: _cb_result.append(ts.contents.tv_sec + ts.contents.tv_usec * 1e-6)
+					else: raise NotImplementedError('Unknown nflog attribute: {}'.format(attr))
+		except:
+			_cb_result = StopIteration # breaks the generator
+			raise
 
 	nflog_cb_t = ctypes.CFUNCTYPE( ctypes.c_void_p,
 		ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p )
@@ -64,19 +92,20 @@ def nflog_generator(qids, pf=(socket.AF_INET, socket.AF_INET6)):
 	fd = libnflog.nflog_fd(handle)
 	buff = ctypes.create_string_buffer(256)
 
-	res = fd # yield fd for poll() on first iteration
+	yield fd # yield fd for poll() on first iteration
 	while True:
-		yield res
+		_cb_result = None
 		libnflog.nflog_handle_packet(
 			handle, buff, libnflog.recv(fd, buff, 256, 0) )
-		try: res = cb_result.pop()
-		except IndexError: res = None
+		if _cb_result is StopIteration: raise _cb_result
+		yield _cb_result
 
 
 if __name__ == '__main__':
-	src = nflog_generator([0, 1])
+	src = nflog_generator([0, 1], extra_attrs=['len', 'ts'])
 	fd = next(src)
 	for pkt in src:
 		if pkt is None: continue
-		print('Got packet, len:', len(pkt))
+		pkt, pkt_len, ts = pkt
+		print('Got packet, len: {}, ts: {}'.format(pkt_len, ts))
 		# print('Payload:', pkt.encode('hex'))
