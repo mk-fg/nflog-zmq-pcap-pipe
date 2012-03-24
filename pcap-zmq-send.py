@@ -97,9 +97,9 @@ def main():
 
 	if optz.user:
 		import pwd
-		uid, gid = op.attrgetter('pw_uid', 'pw_gid')(pwd.getpwnam(optz.user))
-		os.setresgid(*[gid]*3)
-		os.setresuid(*[uid]*3)
+		optz.user = pwd.getpwnam(optz.user)
+		os.setresgid(*[optz.user.pw_uid]*3)
+		os.setresuid(*[optz.user.pw_gid]*3)
 
 	import zmq
 	context = zmq.Context()
