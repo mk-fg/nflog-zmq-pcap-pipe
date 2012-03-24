@@ -28,7 +28,7 @@ Python implementation performance is not stellar, but borderline-acceptable.
 Usage
 --------------------
 
-gateway.host (with ulogd configured to use pcap output plugin):
+gateway.host:
 
 	iptables -A OUTPUT --destination 1.2.3.4 -j NFLOG --nflog-group 0
 	iptables -A OUTPUT --destination 1.2.3.5 -j NFLOG --nflog-group 1
