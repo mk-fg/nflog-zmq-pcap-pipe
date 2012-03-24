@@ -48,7 +48,6 @@ Requirements
 --------------------
 
 * Python 2.7 with ctypes support, and zlib if "low watermark" is enabled
-* [libnetfilter_log](http://netfilter.org/projects/libnetfilter_log) on the sending side
-* [nflog-bindings](https://www.wzdftpd.net/redmine/projects/nflog-bindings) on the sending side
+* [libnetfilter_log.so.1](http://netfilter.org/projects/libnetfilter_log) on the sending side
 * [libpcap.so.1](http://www.tcpdump.org/) on the receiving side
 * [pyzmq](https://github.com/zeromq/pyzmq)
