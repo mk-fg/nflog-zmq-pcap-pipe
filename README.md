@@ -28,16 +28,19 @@ Python implementation performance is not stellar, but borderline-acceptable.
 Usage
 --------------------
 
+Simple example for sending outgoing traffic to some random IP address for
+analysis from gateway.host to ids.host.
+
 gateway.host:
 
-	iptables -A OUTPUT --destination 1.2.3.4 -j NFLOG --nflog-group 0
-	iptables -A OUTPUT --destination 1.2.3.5 -j NFLOG --nflog-group 1
+	iptables -I OUTPUT -d google.com -j NFLOG --nflog-group 0 --nflog-range 65535
+	ip6tables -I OUTPUT -d ipv6.google.com -j NFLOG --nflog-group 1 --nflog-range 65535
 	./pcap-zmq-send.py 0,1 tcp://ids.host:1234
 
 ids.host:
 
 	mkfifo /run/snort.pcap
-	./pcap-zmq-recv.py tcp://ids.host:1234 /run/snort.pcap &
+	./pcap-zmq-recv.py tcp://0.0.0.0:1234 /run/snort.pcap &
 	snort --treat-drop-as-alert -r /run/snort.pcap
 
 ("--treat-drop-as-alert" option is useful because snort can't really "drop" or
