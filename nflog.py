@@ -80,8 +80,8 @@ def nflog_generator(qids,
 			_cb_result = StopIteration # breaks the generator
 			raise
 
-	nflog_cb_t = ctypes.CFUNCTYPE( ctypes.c_void_p,
-		ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p )
+	nflog_cb_t = ctypes.CFUNCTYPE(
+		ctypes.c_void_p, *[ctypes.POINTER(ctypes.c_void_p)]*3 )
 	c_cb = nflog_cb_t(callback)
 
 	for qid in (qids if not isinstance(qids, int) else [qids]):
