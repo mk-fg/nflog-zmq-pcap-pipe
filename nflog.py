@@ -32,6 +32,7 @@ def libnflog_init():
 		libnflog.nflog_unbind_pf.errcheck = _chk_int
 		libnflog.nflog_bind_pf.errcheck = _chk_int
 		libnflog.nflog_set_mode.errcheck = _chk_int
+		libnflog.nflog_set_nlbufsiz.errcheck = _chk_int
 		libnflog.recv.errcheck = ft.partial(_chk_int, gt0=True)
 		libnflog.nflog_get_payload.errcheck = _chk_int
 		libnflog.nflog_get_timestamp.errcheck = _chk_int
@@ -42,13 +43,19 @@ _cb_result = None # pity there's no "nonlocal" in py2.X
 
 def nflog_generator(qids,
 		pf=(socket.AF_INET, socket.AF_INET6),
-		extra_attrs=None ):
+		nlbufsiz=None, extra_attrs=None ):
 	'''Generator that yields:
-		- on first iteration - netlink fd that can be poll'ed
-			or integrated into some event loop (twisted, gevent, ...)
-		- on all subsequent iterations it does recv() on that fd,
-			returning either None (if no packet can be assembled yet)
-			or captured packet payload.'''
+			- on first iteration - netlink fd that can be poll'ed
+				or integrated into some event loop (twisted, gevent, ...)
+			- on all subsequent iterations it does recv() on that fd,
+				returning either None (if no packet can be assembled yet)
+				or captured packet payload.
+		qids: nflog group ids to bind to (nflog_bind_group)
+		Keywords:
+			pf: address families to pass to nflog_bind_pf
+			extra_attrs: metadata to extract from captured packets,
+				returned in a list after packet payload, in the same order
+			nlbufsiz (bytes): set size of netlink socket buffer for the created queues'''
 	global _cb_result
 
 	libnflog = libnflog_init()
@@ -87,6 +94,7 @@ def nflog_generator(qids,
 	for qid in (qids if not isinstance(qids, int) else [qids]):
 		qh = libnflog.nflog_bind_group(handle, qid)
 		libnflog.nflog_set_mode(qh, 0x2, 0xffff) # NFULNL_COPY_PACKET
+		if nlbufsiz: libnflog.nflog_set_nlbufsiz(qh, nlbufsiz)
 		libnflog.nflog_callback_register(qh, c_cb)
 
 	fd = libnflog.nflog_fd(handle)
@@ -95,14 +103,20 @@ def nflog_generator(qids,
 	yield fd # yield fd for poll() on first iteration
 	while True:
 		_cb_result = None
-		libnflog.nflog_handle_packet(
-			handle, buff, libnflog.recv(fd, buff, 256, 0) )
+		try: pkt = libnflog.recv(fd, buff, 256, 0)
+		except OSError as err:
+			if err.errno == errno.ENOBUFS:
+				log.warn( 'nlbufsiz seem'
+					' to be insufficient to hold unprocessed packets,'
+					' consider raising it via corresponding function keyword' )
+				continue
+		libnflog.nflog_handle_packet(handle, buff, pkt)
 		if _cb_result is StopIteration: raise _cb_result
 		yield _cb_result
 
 
 if __name__ == '__main__':
-	src = nflog_generator([0, 1], extra_attrs=['len', 'ts'])
+	src = nflog_generator([0, 1], extra_attrs=['len', 'ts'], nlbufsiz=2*2**20)
 	fd = next(src)
 	for pkt in src:
 		if pkt is None: continue
