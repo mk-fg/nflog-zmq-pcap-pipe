@@ -36,6 +36,7 @@ def main():
 				with open(optz.dst, 'wb') as dst:
 					os.dup2(dst.fileno(), 1)
 					pcap_dst = pcap.writer()
+					next(pcap_dst)
 					log.debug('(Re-)opened destination path')
 
 					while True:
