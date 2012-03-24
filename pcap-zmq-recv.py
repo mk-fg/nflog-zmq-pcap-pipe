@@ -15,6 +15,7 @@ def main():
 	from contextlib import closing
 	from time import sleep
 	from zlib import decompress
+	from struct import unpack, calcsize
 	import os, logging, pcap
 
 	logging.basicConfig(
@@ -28,6 +29,9 @@ def main():
 	import zmq
 	context = zmq.Context()
 
+	pkt_len_fmt = '!I'
+	pkt_len_size = calcsize(pkt_len_fmt)
+
 	with closing(context.socket(zmq.PULL)) as src:
 		src.bind(optz.src)
 
@@ -40,9 +44,16 @@ def main():
 					log.debug('(Re-)opened destination path')
 
 					while True:
-						pkt = src.recv()
-						while src.getsockopt(zmq.RCVMORE): pkt += src.recv()
-						pcap_dst.send(decompress(pkt[1:]) if pkt[0] == '\x01' else pkt[1:])
+						buff = src.recv()
+						while src.getsockopt(zmq.RCVMORE): buff += src.recv()
+						if buff[0] == '\x01':
+							buff = decompress(buff[1:])
+							pos, pos_max = 0, len(buff)
+							while pos != pos_max:
+								pkt_len, = unpack(pkt_len_fmt, buff[pos:pos+pkt_len_size])
+								pos += pkt_len_size + pkt_len
+								pcap_dst.send(buff[pos - pkt_len:pos])
+						else: pcap_dst.send(buff[1:])
 			except pcap.PcapError as err: log.exception('Error from libpcap')
 			if not optz.reopen: break
 			sleep(1)

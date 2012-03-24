@@ -3,9 +3,10 @@
 from __future__ import print_function
 
 
-def pipe(cb, win, lwm, hwm, log):
+def pipe(cb, win, lwm, hwm, log, pkt_len_fmt='!I'):
 	from time import time
 	from zlib import compressobj
+	from struct import pack
 
 	if not lwm and not hwm: win = None
 	else:
@@ -28,6 +29,8 @@ def pipe(cb, win, lwm, hwm, log):
 			else:
 				if send is False: cb('\x01' + bytes(buff[:bs]) + comp.flush())
 				if lwm and rate > lwm:
+					# log.debug( 'lwm reached (rate: {:.2f}),'
+					# 	' compressing packets'.format(rate / 2**20) )
 					comp = compressobj()
 					send = False
 				else: send = True
@@ -37,7 +40,7 @@ def pipe(cb, win, lwm, hwm, log):
 		if send: cb('\x00' + pkt)
 		elif send is None: pass # drop packet
 		else: # compress packet
-			pkt = comp.compress(pkt)
+			pkt = comp.compress(pack(pkt_len_fmt, len(pkt)) + pkt)
 			buff[bs:] = pkt
 
 		if win: bs += len(pkt)
