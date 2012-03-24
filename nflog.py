@@ -49,7 +49,8 @@ def nflog_generator(qids,
 		nlbufsiz=None, extra_attrs=None ):
 	'''Generator that yields:
 			- on first iteration - netlink fd that can be poll'ed
-				or integrated into some event loop (twisted, gevent, ...)
+				or integrated into some event loop (twisted, gevent, ...).
+				Also, that is the point where uid/gid/caps can be dropped.
 			- on all subsequent iterations it does recv() on that fd,
 				returning either None (if no packet can be assembled yet)
 				or captured packet payload.
