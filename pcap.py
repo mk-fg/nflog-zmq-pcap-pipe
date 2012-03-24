@@ -8,12 +8,12 @@ from time import time
 import ctypes, xdrlib
 
 
-class PcapError(Exception): pass
+class PcapError(OSError): pass
 
 class c_pcap_timeval(ctypes.Structure):
 	_fields_ = [
-		('tv_sec', ctypes.c_int32),
-		('tv_usec', ctypes.c_int32) ]
+		('tv_sec', ctypes.c_long),
+		('tv_usec', ctypes.c_long) ]
 
 class c_pcap_pkthdr(ctypes.Structure):
 	_fields_ = [
@@ -66,9 +66,10 @@ def libpcap_init():
 		libpcap = ctypes.CDLL('libpcap.so.1')
 
 		libpcap.pcap_geterr.restype = ctypes.c_char_p
-		libpcap.pcap_open_offline.restype = ctypes.c_void_p
-		libpcap.pcap_open_dead.restype = ctypes.c_void_p
-		libpcap.pcap_dump_open.restype = ctypes.c_void_p
+		libpcap.pcap_open_offline.restype = ctypes.POINTER(ctypes.c_void_p)
+		libpcap.pcap_open_dead.restype = ctypes.POINTER(ctypes.c_void_p)
+		libpcap.pcap_dump_open.restype = ctypes.POINTER(ctypes.c_void_p)
+		libpcap.pcap_dump.restype = ctypes.c_void_p
 
 		libpcap.pcap_next_ex.argtypes = ctypes.c_void_p,\
 			ctypes.POINTER(ctypes.POINTER(c_pcap_pkthdr)),\
@@ -94,13 +95,15 @@ def reader(path='-', opaque=True):
 
 def writer(path='-', opaque=True):
 	libpcap = libpcap_init()
-	dst = libpcap.pcap_open_dead(0, 65535) # linktype=DLT_NULL, snaplen
-	if not dst: raise PcapError
+	dst = libpcap.pcap_open_dead(12, 65535) # linktype=DLT_RAW, snaplen
+	if not dst: raise PcapError()
+	libpcap.pcap_dump_open.errcheck = ft.partial(_chk_null, dst)
+	dumper = libpcap.pcap_dump_open(dst, path)
 	try:
-		libpcap.pcap_dump_open.errcheck = ft.partial(_chk_null, dst)
-		dumper = libpcap.pcap_dump_open(dst, path)
 		while True:
 			dump = yield
 			pkt_hdr, pkt = loads(dump) if opaque else dump
 			libpcap.pcap_dump(dumper, ctypes.byref(pkt_hdr), pkt)
-	finally: libpcap.pcap_close(dst)
+	finally:
+		libpcap.pcap_dump_close(dumper)
+		libpcap.pcap_close(dst)
