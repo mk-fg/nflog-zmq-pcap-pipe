@@ -48,6 +48,7 @@ def main():
 	parser = argparse.ArgumentParser(description='Pipe nflog packet stream to zeromq.')
 	parser.add_argument('src', help='Comma-separated list of nflog groups to receive.')
 	parser.add_argument('dst', help='ZMQ socket address to send data to.')
+	parser.add_argument('-u', '--user', help='User name to drop privileges to.')
 
 	parser.add_argument('--lwm',
 		type=float, metavar='MiB/s', default=1.0,
@@ -62,6 +63,9 @@ def main():
 		help='After how many MiB throughput gets recalculated,'
 			' checked and (possibly) compressed (default: max(2 * hwm, 4 * lwm)).')
 
+	parser.add_argument('--netlink-buffer',
+		type=float, metavar='MiB', default=2.0,
+		help='Netlink socket buffer size ("nlbufsiz", default: %(default)s).')
 	parser.add_argument('--zmq-buffer',
 		type=int, metavar='msg_count', default=30,
 		help='ZMQ_HWM for the socket - number of packets to'
@@ -86,6 +90,17 @@ def main():
 		optz.wm_interval = max(optz.hwm * 2, optz.lwm * 4)
 	else: optz.wm_interval *= 2**20
 
+	src = nflog.nflog_generator(
+		map(int, optz.src.split(',')),
+		nlbufsiz=int(optz.netlink_buffer * 2**20) )
+	next(src) # no use for polling here
+
+	if optz.user:
+		import pwd
+		uid, gid = op.attrgetter('pw_uid', 'pw_gid')(pwd.getpwnam(optz.user))
+		os.setresgid(*[gid]*3)
+		os.setresuid(*[uid]*3)
+
 	import zmq
 	context = zmq.Context()
 
@@ -103,9 +118,6 @@ def main():
 			queue = pipe( send_zmq, log=log,
 				win=int(optz.wm_interval), lwm=optz.lwm, hwm=optz.hwm )
 			next(queue)
-
-			src = nflog.nflog_generator(map(int, optz.src.split(',')))
-			next(src) # no use for polling here
 
 			log.debug('Entering NFLOG reader loop')
 			for pkt in src:
