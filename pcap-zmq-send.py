@@ -43,26 +43,6 @@ def pipe(cb, win, lwm, hwm, log):
 		if win: bs += len(pkt)
 
 
-def nflog_loop(qids, cb):
-	from socket import AF_INET, AF_INET6
-	import nflog
-
-	log = nflog.log()
-	log.open()
-	log.bind(AF_INET)
-	log.bind(AF_INET6)
-
-	try:
-		log.set_callback(cb)
-		for qid in qids: log.create_queue(qid)
-		while True: log.try_run()
-
-	finally:
-		log.unbind(AF_INET)
-		log.unbind(AF_INET6)
-		log.close()
-
-
 def main():
 	import argparse
 	parser = argparse.ArgumentParser(description='Pipe nflog packet stream to zeromq.')
@@ -91,7 +71,7 @@ def main():
 	optz = parser.parse_args()
 
 	from contextlib import closing
-	import os, errno, logging, pcap
+	import os, errno, logging, nflog, pcap
 
 	logging.basicConfig(
 		level=logging.DEBUG if optz.debug else logging.WARNING,
@@ -122,12 +102,15 @@ def main():
 
 			queue = pipe( send_zmq, log=log,
 				win=int(optz.wm_interval), lwm=optz.lwm, hwm=optz.hwm )
-			queue.send(None)
+			next(queue)
+
+			src = nflog.nflog_generator(map(int, optz.src.split(',')))
+			next(src) # no use for polling here
 
 			log.debug('Entering NFLOG reader loop')
-			nflog_loop( map(int, optz.src.split(',')),
-				lambda pkt_id, pkt, q=queue:\
-					q.send(pcap.construct(pkt.get_data(), pkt_len=pkt.get_length())) )
+			for pkt in src:
+				if pkt is None: continue
+				queue.send(pcap.construct(pkt))
 
 	finally:
 		log.debug('Finishing')
