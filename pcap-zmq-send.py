@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 
-def pipe(cb, win, lwm, hwm, log, pkt_len_fmt='!I'):
+def pipe(cb, win, lwm, hwm, log, pkt_len_fmt='!I', statsd=None):
 	from time import time
 	from zlib import compressobj
 	from struct import pack
@@ -16,6 +16,7 @@ def pipe(cb, win, lwm, hwm, log, pkt_len_fmt='!I'):
 
 	while True:
 		pkt = yield
+		if statsd: statsd.send('raw_in')
 
 		if win and bs > win:
 			ts_now = time()
@@ -37,7 +38,9 @@ def pipe(cb, win, lwm, hwm, log, pkt_len_fmt='!I'):
 
 			bs, ts = 0, ts_now
 
-		if send: cb('\x00' + pkt)
+		if send:
+			cb('\x00' + pkt)
+			if statsd: statsd.send('pipe_out')
 		elif send is None: pass # drop packet
 		else: # compress packet
 			pkt = comp.compress(pack(pkt_len_fmt, len(pkt)) + pkt)
@@ -66,6 +69,16 @@ def main():
 		help='After how many MiB throughput gets recalculated,'
 			' checked and (possibly) compressed (default: max(2 * hwm, 4 * lwm)).')
 
+	parser.add_argument('-m', '--statsd', metavar='host[:port]',
+		help='host or host:port of statsd to send performance metrics to.')
+	parser.add_argument('-n', '--statsd-metrics-prefix',
+		metavar='prefix', default='{host}.nflog_pipe.',
+		help='Prefix for metric names, passed to statsd (default: %(default)s).')
+	parser.add_argument('-i', '--statsd-sampling',
+		type=int, metavar='count', default=50,
+		help='Statsd sampling rate (counter is being sent'
+			' sampled every 1/Nth of the time, default: %(default)s).')
+
 	parser.add_argument('--netlink-buffer',
 		type=float, metavar='MiB', default=2.0,
 		help='Netlink socket buffer size ("nlbufsiz", default: %(default)s).')
@@ -78,7 +91,7 @@ def main():
 	optz = parser.parse_args()
 
 	from contextlib import closing
-	import os, errno, logging, nflog, pcap
+	import os, errno, logging, nflog, pcap, metrics
 
 	logging.basicConfig(
 		level=logging.DEBUG if optz.debug else logging.WARNING,
@@ -104,6 +117,15 @@ def main():
 		os.setresgid(*[optz.user.pw_uid]*3)
 		os.setresuid(*[optz.user.pw_gid]*3)
 
+	if optz.statsd:
+		statsd = optz.statsd.rsplit(':', 1)
+		if len(statsd) > 1: statsd[1] = int(statsd[1])
+		statsd = metrics.statsd( *statsd,
+			prefix=optz.statsd_metrics_prefix.format(host=os.uname()[1]),
+			sampling=optz.statsd_sampling )
+		next(statsd)
+	else: statsd = None
+
 	import zmq
 	context = zmq.Context()
 
@@ -118,7 +140,7 @@ def main():
 				except zmq.ZMQError as err:
 					if err.errno != errno.EAGAIN: raise
 
-			queue = pipe( send_zmq, log=log,
+			queue = pipe( send_zmq, log=log, statsd=statsd,
 				win=int(optz.wm_interval), lwm=optz.lwm, hwm=optz.hwm )
 			next(queue)
 
