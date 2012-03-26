@@ -50,7 +50,7 @@ def main():
 					while True:
 						buff = src.recv()
 						while src.getsockopt(zmq.RCVMORE): buff += src.recv()
-						statsd.send('pipe_in')
+						if statsd: statsd.send('pipe_in')
 						if buff[0] == '\x01':
 							buff = decompress(buff[1:])
 							pos, pos_max = 0, len(buff)
@@ -58,10 +58,10 @@ def main():
 								pkt_len, = unpack(pkt_len_fmt, buff[pos:pos+pkt_len_size])
 								pos += pkt_len_size + pkt_len
 								pcap_dst.send(buff[pos - pkt_len:pos])
-								statsd.send('raw_out')
+								if statsd: statsd.send('raw_out')
 						else:
 							pcap_dst.send(buff[1:])
-							statsd.send('raw_out')
+							if statsd: statsd.send('raw_out')
 			except pcap.PcapError as err: log.exception('Error from libpcap')
 			if not optz.reopen: break
 			sleep(1)
