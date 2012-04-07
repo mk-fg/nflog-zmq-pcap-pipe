@@ -17,6 +17,10 @@ def add_statsd_optz(parser):
 		type=int, metavar='count', default=50,
 		help='Statsd sampling rate (counter is being sent'
 			' sampled every 1/Nth of the time, default: %(default)s).')
+	parser.add_argument('-t', '--statsd-type', metavar='type', default='m',
+		help='Statsd type suffix to use, as in "send \'some_metric:123|c\'", where \'c\''
+			'  is the type in question (see statsd implementation docs for the'
+			' list of supported types, default: %(default)s).')
 
 def statsd_from_optz(optz):
 	if optz.statsd:
@@ -40,5 +44,5 @@ def statsd(host, port=8125, prefix=None, sampling=1, val_max=2**127):
 		val = vals[name] = vals.get(name, 0) + 1
 		if val % sampling != 0: continue
 		if prefix: name = prefix + name
-		sock.sendto('{}:{}|c'.format(name, val), dst)
+		sock.sendto('{}:{}|m'.format(name, val), dst)
 		if val > val_max: val = 0
