@@ -9,7 +9,8 @@ import os, socket
 
 def add_statsd_optz(parser):
 	parser.add_argument('-m', '--statsd', metavar='host[:port]',
-		help='host or host:port of statsd to send performance metrics to.')
+		help='host or host:port of statsd to send performance metrics to.'
+			'Metrics are sent as increments since the last send.')
 	parser.add_argument('-n', '--statsd-metrics-prefix',
 		metavar='prefix', default='{host}.nflog_pipe.',
 		help='Prefix for metric names, passed to statsd (default: %(default)s).')
@@ -28,13 +29,13 @@ def statsd_from_optz(optz):
 		if len(statsd_obj) > 1: statsd_obj[1] = int(statsd_obj[1])
 		statsd_obj = statsd( *statsd_obj,
 			prefix=optz.statsd_metrics_prefix.format(host=os.uname()[1]),
-			sampling=optz.statsd_sampling )
+			sampling=optz.statsd_sampling, mtype=optz.statsd_type )
 		next(statsd_obj)
 		return statsd_obj
 	else: return None
 
 
-def statsd(host, port=8125, prefix=None, sampling=1, val_max=2**127):
+def statsd(host, port=8125, prefix=None, sampling=1, mtype='m'):
 	sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	dst = host, port
 	yield sock.fileno()
@@ -42,7 +43,7 @@ def statsd(host, port=8125, prefix=None, sampling=1, val_max=2**127):
 	while True:
 		name = yield
 		val = vals[name] = vals.get(name, 0) + 1
-		if val % sampling != 0: continue
-		if prefix: name = prefix + name
-		sock.sendto('{}:{}|m'.format(name, val), dst)
-		if val > val_max: val = 0
+		if val >= sampling:
+			if prefix: name = prefix + name
+			sock.sendto('{}:{}|{}'.format(name, val, mtype), dst)
+			val = 0
