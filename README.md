@@ -23,6 +23,11 @@ easy-to-maintain as possible, and [ZeroMQ](http://zeromq.org/) helps a lot here.
 Multiple senders (possibly from multiple hosts) can be connected to one
 receiver.
 
+Packet counter metrics on both ends can be send to statsd (think
+[etsy/statsd](https://github.com/etsy/statsd) or any of
+[these](joemiller.me/2011/09/21/list-of-statsd-server-implementations)). Disabled
+by default, see --statsd-* options.
+
 Python implementation performance is not stellar, but borderline-acceptable.
 
 
