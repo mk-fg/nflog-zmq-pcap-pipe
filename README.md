@@ -1,8 +1,9 @@
-pcap-zmq-pipe: tool to send pcap stream/dump over network (0mq) for real-time (or close to) analysis
+nflog-zmq-pcap-pipe
 --------------------
 
 Set of scripts to allow selective dumping of packets with netfilter NFLOG module
-and sending of these over zeromq channel to remote host for analysis.
+and sending of these over zeromq channel to remote host (producing pcap stream
+there) for analysis.
 
 Aside from filtering (which is outside of scope of the app), throughput rate is
 checked. Packets get squashed+compressed (zlib) upon reaching "low watermark"
@@ -35,12 +36,12 @@ gateway.host:
 
 	iptables -I OUTPUT -d google.com -j NFLOG --nflog-group 0 --nflog-range 65535
 	ip6tables -I OUTPUT -d ipv6.google.com -j NFLOG --nflog-group 1 --nflog-range 65535
-	./pcap-zmq-send.py 0,1 tcp://ids.host:1234
+	./nflog-zmq-send.py 0,1 tcp://ids.host:1234
 
 ids.host:
 
 	mkfifo /run/snort.pcap
-	./pcap-zmq-recv.py tcp://0.0.0.0:1234 /run/snort.pcap &
+	./zmq-pcap-recv.py tcp://0.0.0.0:1234 /run/snort.pcap &
 	snort --treat-drop-as-alert -r /run/snort.pcap
 
 ("--treat-drop-as-alert" option is useful because snort can't really "drop" or
