@@ -18,7 +18,7 @@ def add_statsd_optz(parser):
 		help='Statsd sampling rate. Chance the counter is being sent is'
 			' calculated as (samples / count)[ * ((time_last_sent - time) / interval)]'
 			'(default: %(default)s).')
-	parser.add_argument('-t', '--statsd-type', metavar='type', default='m',
+	parser.add_argument('-t', '--statsd-type', metavar='type', default='d',
 		help='Statsd type suffix to use, as in "send \'some_metric:123|c\'", where \'c\''
 			'  is the type in question (see statsd implementation docs for the'
 			' list of supported types, default: %(default)s).')
