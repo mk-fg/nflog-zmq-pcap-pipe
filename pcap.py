@@ -46,6 +46,7 @@ def loads(dump):
 	pkt_hdr.len = dump.unpack_uint()
 	pkt = dump.unpack_bytes()
 	pkt_hdr.caplen = len(pkt)
+	dump.done()
 	return pkt_hdr, pkt
 
 def construct(pkt, pkt_len=None, ts=None):
