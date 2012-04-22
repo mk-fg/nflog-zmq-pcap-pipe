@@ -73,7 +73,7 @@ def main():
 			' checked and (possibly) compressed (default: max(2 * hwm, 4 * lwm)).')
 
 	parser.add_argument('--libnflog-nlbufsiz',
-		type=float, metavar='MiB', default=2.0,
+		type=float, metavar='MiB', default=10.0,
 		help='Netlink socket buffer size ("nlbufsiz", default: %(default)s).')
 	parser.add_argument('--libnflog-qthresh',
 		type=int, metavar='packets', default=100,
