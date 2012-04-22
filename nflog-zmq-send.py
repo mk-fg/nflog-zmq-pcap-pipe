@@ -72,9 +72,17 @@ def main():
 		help='After how many MiB throughput gets recalculated,'
 			' checked and (possibly) compressed (default: max(2 * hwm, 4 * lwm)).')
 
-	parser.add_argument('--netlink-buffer',
+	parser.add_argument('--libnflog-nlbufsiz',
 		type=float, metavar='MiB', default=2.0,
 		help='Netlink socket buffer size ("nlbufsiz", default: %(default)s).')
+	parser.add_argument('--libnflog-qthresh',
+		type=int, metavar='packets', default=100,
+		help='NFLOG queue kernel-to-userspace'
+			' packet-count flush threshold ("qthresh", default: %(default)s).')
+	parser.add_argument('--libnflog-timeout',
+		type=float, metavar='seconds', default=1.0,
+		help='NFLOG queue kernel-to-userspace'
+			' flush timeout ("timeout", default: %(default)s).')
 	parser.add_argument('--zmq-buffer',
 		type=int, metavar='msg_count', default=30,
 		help='ZMQ_HWM for the socket - number of packets to'
@@ -100,7 +108,9 @@ def main():
 
 	src = nflog.nflog_generator(
 		map(int, optz.src.split(',')),
-		nlbufsiz=int(optz.netlink_buffer * 2**20) )
+		qthresh=max(1, optz.libnflog_qthresh),
+		timeout=optz.libnflog_timeout,
+		nlbufsiz=int(optz.libnflog_nlbufsiz * 2**20) )
 	next(src) # no use for polling here
 
 	if optz.user:
