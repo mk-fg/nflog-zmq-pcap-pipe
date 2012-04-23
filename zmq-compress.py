@@ -118,7 +118,7 @@ def main():
 
 				if statsd:
 					statsd.send('compress_in.pkt')
-					statsd.send('compress_in.bytes', len(buff))
+					statsd.send(('compress_in.bytes', len(buff)))
 
 				pkt = compressor.send(buff)
 				if pkt is None: continue
@@ -130,7 +130,7 @@ def main():
 
 				if statsd:
 					statsd.send('compress_out.pkt')
-					statsd.send('compress_out.bytes', len(pkt))
+					statsd.send(('compress_out.bytes', len(pkt)))
 
 	finally:
 		log.debug('Finishing')

@@ -52,7 +52,7 @@ def main():
 
 							if statsd:
 								statsd.send('raw_out.pkt')
-								statsd.send('raw_out.bytes', len(buff))
+								statsd.send(('raw_out.bytes', len(buff)))
 				except pcap.PcapError as err:
 					log.exception('Error from libpcap')
 

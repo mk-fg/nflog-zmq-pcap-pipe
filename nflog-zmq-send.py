@@ -75,7 +75,7 @@ def main():
 				if pkt is None: continue
 				if statsd:
 					statsd.send('raw_in.pkt')
-					statsd.send('raw_in.bytes', len(pkt))
+					statsd.send(('raw_in.bytes', len(pkt)))
 
 				try: dst.send(pcap.construct(pkt), zmq.NOBLOCK)
 				except zmq.ZMQError as err:

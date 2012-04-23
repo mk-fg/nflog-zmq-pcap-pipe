@@ -60,7 +60,7 @@ def statsd( host, port=8125, prefix=None,
 
 		try: ts_send, ts_sampling, ts_chance, val = values[name]
 		except KeyError:
-			ts_send, ts_sampling, ts_chance, value =\
+			ts_send, ts_sampling, ts_chance, val =\
 				time(), 1.0, max(int(sampling / 2), 1), 0
 
 		val += inc

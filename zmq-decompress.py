@@ -70,7 +70,7 @@ def main():
 
 				if statsd:
 					statsd.send('decompress_in.pkt')
-					statsd.send('decompress_in.bytes', len(buff))
+					statsd.send(('decompress_in.bytes', len(buff)))
 
 				for pkt in decompressor.send(buff):
 					try: dst.send(pkt, zmq.NOBLOCK)
@@ -80,7 +80,7 @@ def main():
 
 					if statsd:
 						statsd.send('decompress_out.pkt')
-						statsd.send('decompress_out.bytes', len(pkt))
+						statsd.send(('decompress_out.bytes', len(pkt)))
 
 	finally:
 		log.debug('Finishing')
