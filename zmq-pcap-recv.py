@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
-
 def main():
 	from contextlib import closing
 	from time import sleep
@@ -33,40 +32,35 @@ def main():
 	import zmq
 	context = zmq.Context()
 
-	pkt_len_fmt = '!I'
-	pkt_len_size = calcsize(pkt_len_fmt)
+	try:
+		with closing(context.socket(zmq.PULL)) as src:
+			src.bind(optz.src)
 
-	with closing(context.socket(zmq.PULL)) as src:
-		src.bind(optz.src)
+			while True:
+				try:
+					with open(optz.dst, 'wb') as dst:
+						os.dup2(dst.fileno(), 1)
+						pcap_dst = pcap.writer()
+						next(pcap_dst)
+						log.debug('(Re-)opened destination path')
 
-		while True:
-			try:
-				with open(optz.dst, 'wb') as dst:
-					os.dup2(dst.fileno(), 1)
-					pcap_dst = pcap.writer()
-					next(pcap_dst)
-					log.debug('(Re-)opened destination path')
+						while True:
+							buff = src.recv()
+							while src.getsockopt(zmq.RCVMORE): buff += src.recv()
 
-					while True:
-						buff = src.recv()
-						while src.getsockopt(zmq.RCVMORE): buff += src.recv()
-						if statsd: statsd.send('pipe_in')
-						if buff[0] == '\x01':
-							buff = decompress(buff[1:])
-							pos, pos_max = 0, len(buff)
-							while pos != pos_max:
-								pkt_len, = unpack(pkt_len_fmt, buff[pos:pos+pkt_len_size])
-								pos += pkt_len_size + pkt_len
-								pcap_dst.send(buff[pos - pkt_len:pos])
-								if statsd: statsd.send('raw_out')
-						else:
-							pcap_dst.send(buff[1:])
-							if statsd: statsd.send('raw_out')
-			except pcap.PcapError as err: log.exception('Error from libpcap')
-			if not optz.reopen: break
-			sleep(1)
+							pcap_dst.send(buff)
 
-	log.debug('Finishing')
-	context.term()
+							if statsd:
+								statsd.send('raw_out.pkt')
+								statsd.send('raw_out.bytes', len(buff))
+				except pcap.PcapError as err:
+					log.exception('Error from libpcap')
+
+				if not optz.reopen: break
+				sleep(1)
+
+	finally:
+		log.debug('Finishing')
+		context.term()
 
 if __name__ == '__main__': main()
