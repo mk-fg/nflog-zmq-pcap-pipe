@@ -51,17 +51,25 @@ def statsd( host, port=8125, prefix=None,
 	sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	dst = host, port
 	yield sock.fileno()
-	ts_send, ts_sampling, ts_chance =\
-		time(), 1.0, max(int(sampling / 2), 1)
 
-	val = 0
+	values = dict()
 	while True:
 		name = yield
+		if isinstance(name, bytes): inc = 1
+		else: name, inc = name
+
+		try: ts_send, ts_sampling, ts_chance, val = values[name]
+		except KeyError:
+			ts_send, ts_sampling, ts_chance, value =\
+				time(), 1.0, max(int(sampling / 2), 1), 0
+
+		val += inc
 		if sampling and interval and val % ts_sampling == 0:
 			ts_chance = (time() - ts_send) / interval
 		if not sampling or ts_chance * (val / sampling) > random():
 			if prefix: name = prefix + name
 			sock.sendto('{}:{}|{}'.format(name, val, mtype), dst)
-			val = 1
+			val = 0
 			if interval: ts_send = time()
-		else: val += 1
+
+		values[name] = ts_send, ts_sampling, ts_chance, val
