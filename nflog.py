@@ -48,7 +48,8 @@ _cb_result = None # pity there's no "nonlocal" in py2.X
 
 def nflog_generator(qids,
 		pf=(socket.AF_INET, socket.AF_INET6),
-		qthresh=None, timeout=None, nlbufsiz=None, extra_attrs=None ):
+		qthresh=None, timeout=None, nlbufsiz=None,
+		recv_buff=None, extra_attrs=None ):
 	'''Generator that yields:
 			- on first iteration - netlink fd that can be poll'ed
 				or integrated into some event loop (twisted, gevent, ...).
@@ -61,9 +62,11 @@ def nflog_generator(qids,
 			pf: address families to pass to nflog_bind_pf
 			extra_attrs: metadata to extract from captured packets,
 				returned in a list after packet payload, in the same order
+			nlbufsiz (bytes): set size of netlink socket buffer for the created queues
 			qthresh (packets): set the maximum amount of logs in buffer for each group
 			timeout (seconds): set the maximum time to push log buffer for this group
-			nlbufsiz (bytes): set size of netlink socket buffer for the created queues'''
+			recv_buff (bytes): size of the batch to fetch
+				from libnflog to process in python (default: min(nlbufsiz, 1 MiB))'''
 	global _cb_result
 
 	libnflog = libnflog_init()
@@ -113,13 +116,13 @@ def nflog_generator(qids,
 		libnflog.nflog_callback_register(qh, c_cb)
 
 	fd = libnflog.nflog_fd(handle)
-	buff_len = nlbufsiz or 1*2**20 # not sure if size matters here
-	buff = ctypes.create_string_buffer(buff_len)
+	if not recv_buff: recv_buff = min(nlbufsiz, 1*2**20)
+	buff = ctypes.create_string_buffer(recv_buff)
 
 	yield fd # yield fd for poll() on first iteration
 	while True:
 		_cb_result = list()
-		try: pkt = libnflog.recv(fd, buff, buff_len, 0)
+		try: pkt = libnflog.recv(fd, buff, recv_buff, 0)
 		except OSError as err:
 			if err.errno == errno.ENOBUFS:
 				log.warn( 'nlbufsiz seem'

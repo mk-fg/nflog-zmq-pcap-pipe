@@ -76,17 +76,17 @@ def main():
 		type=float, metavar='MiB', default=10.0,
 		help='Netlink socket buffer size ("nlbufsiz", default: %(default)s).')
 	parser.add_argument('--libnflog-qthresh',
-		type=int, metavar='packets', default=100,
+		type=int, metavar='packets',
 		help='NFLOG queue kernel-to-userspace'
-			' packet-count flush threshold ("qthresh", default: %(default)s).')
+			' packet-count flush threshold ("qthresh", default: nlbufsiz * 100).')
 	parser.add_argument('--libnflog-timeout',
-		type=float, metavar='seconds', default=1.0,
+		type=float, metavar='seconds',
 		help='NFLOG queue kernel-to-userspace'
-			' flush timeout ("timeout", default: %(default)s).')
+			' flush timeout ("timeout", default: nlbufsiz / 5).')
 	parser.add_argument('--zmq-buffer',
-		type=int, metavar='msg_count', default=30,
+		type=int, metavar='msg_count',
 		help='ZMQ_HWM for the socket - number of packets to'
-			' buffer in RAM before dropping (default: %(default)s).')
+			' buffer in RAM before dropping (default: qthresh / 10).')
 
 	parser.add_argument('--debug', action='store_true', help='Verbose operation mode.')
 
@@ -105,6 +105,12 @@ def main():
 	if optz.wm_interval is None:
 		optz.wm_interval = max(optz.hwm * 2, optz.lwm * 4)
 	else: optz.wm_interval *= 2**20
+	if optz.libnflog_qthresh is None:
+		optz.libnflog_qthresh = int(optz.libnflog_nlbufsiz * 100)
+	if optz.libnflog_timeout is None:
+		optz.libnflog_timeout = int(optz.libnflog_nlbufsiz / 5.0)
+	if optz.zmq_buffer is None:
+		optz.zmq_buffer = int(optz.libnflog_qthresh / 10.0)
 
 	src = nflog.nflog_generator(
 		map(int, optz.src.split(',')),
