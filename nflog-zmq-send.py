@@ -4,12 +4,12 @@ from __future__ import print_function
 
 def main():
 	from contextlib import closing
-	import os, errno, logging, nflog, pcap, metrics, fastdump
+	import os, errno, logging, nflog, pcap, metrics
 
 	import argparse
 	parser = argparse.ArgumentParser(description='Pipe nflog packet stream to zeromq.')
 	parser.add_argument('src', help='Comma-separated list of nflog groups to receive.')
-	parser.add_argument('dst', help='UDP socket (host:port) to send data to.')
+	parser.add_argument('dst', help='ZMQ socket address to send data to.')
 	parser.add_argument('-u', '--user', help='User name to drop privileges to.')
 
 	parser.add_argument('--libnflog-nlbufsiz',
@@ -39,12 +39,6 @@ def main():
 		datefmt='%Y-%m-%d %H:%M:%S' )
 	log = logging.getLogger('pcap_send')
 
-	optz.dst = optz.dst.split(':')
-	try: optz.dst[1] = int(optz.dst[1])
-	except (IndexError, ValueError):
-		parser.error('dst should be specified in "host:port" format')
-	optz.dst = tuple(optz.dst)
-
 	if optz.libnflog_qthresh is None:
 		optz.libnflog_qthresh = int(optz.libnflog_nlbufsiz * 100)
 	if optz.libnflog_timeout is None:
@@ -66,17 +60,29 @@ def main():
 		os.setresuid(*[optz.user.pw_gid]*3)
 
 	statsd = metrics.statsd_from_optz(optz)
-	dst = fastdump.send(optz.dst)
-	next(dst)
 
-	log.debug('Entering NFLOG reader loop')
-	for pkt in src:
-		if pkt is None: continue
-		if statsd:
-			statsd.send('raw_in.pkt')
-			statsd.send(('raw_in.bytes', len(pkt)))
-		dst.send(pcap.construct(pkt))
+	import zmq
+	context = zmq.Context()
 
-	log.debug('Finishing')
+	try:
+		with closing(context.socket(zmq.PUSH)) as dst:
+			dst.setsockopt(zmq.HWM, optz.zmq_buffer)
+			dst.setsockopt(zmq.LINGER, 0) # it's lossy either way
+			dst.connect(optz.dst)
+
+			log.debug('Entering NFLOG reader loop')
+			for pkt in src:
+				if pkt is None: continue
+				if statsd:
+					statsd.send('raw_in.pkt')
+					statsd.send(('raw_in.bytes', len(pkt)))
+
+				try: dst.send(pcap.construct(pkt), zmq.NOBLOCK)
+				except zmq.ZMQError as err:
+					if err.errno != errno.EAGAIN: raise
+
+	finally:
+		log.debug('Finishing')
+		context.term()
 
 if __name__ == '__main__': main()
