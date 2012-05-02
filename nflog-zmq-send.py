@@ -4,7 +4,7 @@ from __future__ import print_function
 
 def main():
 	from contextlib import closing
-	import os, errno, logging, nflog, pcap, metrics
+	import os, errno, logging, nflog, pcap, metrics, shaper
 
 	import argparse
 	parser = argparse.ArgumentParser(description='Pipe nflog packet stream to zeromq.')
@@ -30,6 +30,7 @@ def main():
 
 	parser.add_argument('--debug', action='store_true', help='Verbose operation mode.')
 
+	shaper.add_compress_optz(parser)
 	metrics.add_statsd_optz(parser)
 	optz = parser.parse_args()
 
@@ -60,6 +61,7 @@ def main():
 		os.setresuid(*[optz.user.pw_gid]*3)
 
 	statsd = metrics.statsd_from_optz(optz)
+	shaper = shaper.compress_pipe_from_optz(optz)
 
 	import zmq
 	context = zmq.Context()
@@ -77,7 +79,12 @@ def main():
 					statsd.send('raw_in.pkt')
 					statsd.send(('raw_in.bytes', len(pkt)))
 
-				try: dst.send(pcap.construct(pkt), zmq.NOBLOCK)
+				pkt = pcap.construct(pkt)
+				if shaper:
+					pkt = shaper.send(pkt)
+					if pkt is None: continue
+
+				try: dst.send(pkt, zmq.NOBLOCK)
 				except zmq.ZMQError as err:
 					if err.errno != errno.EAGAIN: raise
 

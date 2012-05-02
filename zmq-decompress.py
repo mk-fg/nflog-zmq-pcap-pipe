@@ -3,27 +3,9 @@
 from __future__ import print_function
 
 
-def pipe(pkt_len_fmt='!I'):
-	from struct import unpack, calcsize
-	from zlib import decompress
-	pkt_len_size = calcsize(pkt_len_fmt)
-	pkt_out = list()
-	while True:
-		pkt = yield pkt_out
-		pkt_out = list()
-		if pkt[0] == '\x01':
-			pkt = decompress(pkt[1:])
-			pos, pos_max = 0, len(pkt)
-			while pos != pos_max:
-				pkt_len, = unpack(pkt_len_fmt, pkt[pos:pos+pkt_len_size])
-				pos += pkt_len_size + pkt_len
-				pkt_out.append(pkt[pos - pkt_len:pos])
-		else: pkt_out.append(pkt[1:])
-
-
 def main():
 	from contextlib import closing
-	import os, errno, logging, metrics
+	import os, errno, logging, metrics, shaper
 
 	import argparse
 	parser = argparse.ArgumentParser(
@@ -31,14 +13,11 @@ def main():
 			' if it is marked as compressed, and push to another socket.')
 	parser.add_argument('src', help='Receiving ZMQ socket address to bind to.')
 	parser.add_argument('dst', help='ZMQ socket address to relay data to.')
-
 	parser.add_argument('--zmq-buffer',
 		type=int, metavar='msg_count', default=50,
 		help='ZMQ_HWM for the sending socket - number of'
 			' packets to buffer in RAM before blocking (default: %(default)s).')
-
 	parser.add_argument('--debug', action='store_true', help='Verbose operation mode.')
-
 	metrics.add_statsd_optz(parser)
 	optz = parser.parse_args()
 
@@ -49,7 +28,7 @@ def main():
 	log = logging.getLogger('zmq_decompress')
 
 	statsd = metrics.statsd_from_optz(optz)
-	decompressor = pipe()
+	decompressor = shaper.decompress_pipe()
 	next(decompressor)
 
 	import zmq
