@@ -28,8 +28,6 @@ Packet counter metrics on both ends can be send to statsd (think
 [these](joemiller.me/2011/09/21/list-of-statsd-server-implementations)). Disabled
 by default, see --statsd-* options.
 
-Python implementation performance is not stellar, but borderline-acceptable.
-
 
 Usage
 --------------------
@@ -58,14 +56,13 @@ Requirements
 
 * Python 2.7 with ctypes support, and zlib if "low watermark" is enabled
 * [libnetfilter_log.so.1](http://netfilter.org/projects/libnetfilter_log) on the sending side
-* [libpcap.so.1](http://www.tcpdump.org/) on the receiving side
 * [pyzmq](https://github.com/zeromq/pyzmq)
 
 
 Why ctypes (and not, say, [nflog-bindings](https://www.wzdftpd.net/redmine/projects/nflog-bindings))?
 --------------------
 
-* I'm much more comfortable writing python than C or cython
+* I'm more comfortable writing python than C or cython
 * nflog-bindings leaks RAM like titanic, uses printf() in the code (and for each
   captured packet, no less), horribly incomplete and buggy (there is an
   nflog-bindings-based implementation in git-log)
