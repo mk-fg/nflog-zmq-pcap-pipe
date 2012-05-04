@@ -44,7 +44,7 @@ gateway.host:
 ids.host:
 
 	mkfifo /run/snort.pcap
-	./zmq-pcap-recv.py tcp://0.0.0.0:1234 /run/snort.pcap &
+	./pcap-zmq-recv.py tcp://0.0.0.0:1234 /run/snort.pcap &
 	snort --treat-drop-as-alert -r /run/snort.pcap
 
 ("--treat-drop-as-alert" option is useful because snort can't really "drop" or
