@@ -51,7 +51,8 @@ def main():
 		map(int, optz.src.split(',')),
 		qthresh=max(1, optz.libnflog_qthresh),
 		timeout=optz.libnflog_timeout,
-		nlbufsiz=int(optz.libnflog_nlbufsiz * 2**20) )
+		nlbufsiz=int(optz.libnflog_nlbufsiz * 2**20),
+		extra_attrs=['len', 'ts'] )
 	next(src) # no use for polling here
 
 	if optz.user:
@@ -73,13 +74,13 @@ def main():
 			dst.connect(optz.dst)
 
 			log.debug('Entering NFLOG reader loop')
-			for pkt in src:
+			for pkt, pkt_len, ts in src:
 				if pkt is None: continue
 				if statsd:
 					statsd.send('raw_in.pkt')
 					statsd.send(('raw_in.bytes', len(pkt)))
 
-				pkt = pcap.construct(pkt)
+				pkt = pcap.construct(pkt, pkt_len=pkt_len, ts=ts)
 				if shaper:
 					pkt = shaper.send(pkt)
 					if pkt is None: continue

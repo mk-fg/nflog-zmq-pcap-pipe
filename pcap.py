@@ -1,110 +1,45 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
-'ctypes wrapper for libpcap'
-
 import itertools as it, operator as op, functools as ft
-from time import time
-import ctypes, xdrlib
+from time import time, timezone
+from collections import namedtuple
+import xdrlib
+
+'Simple pcap generator'
 
 
-class PcapError(OSError): pass
+Packet = namedtuple('Packet', 'ts_s ts_us len dump')
 
-class c_pcap_timeval(ctypes.Structure):
-	_fields_ = [
-		('tv_sec', ctypes.c_long),
-		('tv_usec', ctypes.c_long) ]
-
-class c_pcap_pkthdr(ctypes.Structure):
-	_fields_ = [
-		('ts', c_pcap_timeval),
-		('caplen', ctypes.c_uint32),
-		('len', ctypes.c_uint32) ]
-
-
-def _chk_read(pcap_t, err, func, args):
-	if err == -1: raise PcapError(libpcap.pcap_geterr(pcap_t))
-	elif err == -2: raise StopIteration()
-	return err
-
-def _chk_null(pcap_t, res, func, args):
-	if not res: raise PcapError(libpcap.pcap_geterr(pcap_t))
-	return res
-
-
-def dumps(pkt_hdr, pkt):
-	dump = xdrlib.Packer()
-	dump.pack_farray(2, [pkt_hdr.ts.tv_sec, pkt_hdr.ts.tv_usec], dump.pack_int)
-	dump.pack_uint(pkt_hdr.len)
-	dump.pack_bytes(pkt)
-	return dump.get_buffer()
-
-def loads(dump):
-	dump = xdrlib.Unpacker(dump)
-	pkt_hdr = c_pcap_pkthdr()
-	pkt_hdr.ts.tv_sec, pkt_hdr.ts.tv_usec = dump.unpack_farray(2, dump.unpack_int)
-	pkt_hdr.len = dump.unpack_uint()
-	pkt = dump.unpack_bytes()
-	pkt_hdr.caplen = len(pkt)
-	dump.done()
-	return pkt_hdr, pkt
 
 def construct(pkt, pkt_len=None, ts=None):
 	ts = ts or time()
 	ts_sec = int(ts)
 	ts_usec = int((ts - ts_sec) * 1e6)
 	dump = xdrlib.Packer()
-	dump.pack_farray(2, [ts_sec, ts_usec], dump.pack_int)
-	dump.pack_uint(pkt_len or len(pkt))
+	dump.pack_farray(3, [ ts_sec,
+		ts_usec, pkt_len or 0 ], dump.pack_uint)
 	dump.pack_bytes(pkt)
 	return dump.get_buffer()
 
 
-libpcap = None
-def libpcap_init():
-	global libpcap
-	if not libpcap:
-		libpcap = ctypes.CDLL('libpcap.so.1')
-
-		libpcap.pcap_geterr.restype = ctypes.c_char_p
-		libpcap.pcap_open_offline.restype = ctypes.POINTER(ctypes.c_void_p)
-		libpcap.pcap_open_dead.restype = ctypes.POINTER(ctypes.c_void_p)
-		libpcap.pcap_dump_open.restype = ctypes.POINTER(ctypes.c_void_p)
-		libpcap.pcap_dump.restype = ctypes.c_void_p
-
-		libpcap.pcap_next_ex.argtypes = ctypes.c_void_p,\
-			ctypes.POINTER(ctypes.POINTER(c_pcap_pkthdr)),\
-			ctypes.POINTER(ctypes.POINTER(ctypes.c_char))
-	return libpcap
+def loads(dump):
+	dump = xdrlib.Unpacker(dump)
+	ts_s, ts_us, pkt_len = dump.unpack_farray(3, dump.unpack_uint)
+	pkt = dump.unpack_bytes()
+	dump.done()
+	return Packet(ts_s, ts_us, pkt_len, pkt)
 
 
-def reader(path='-', opaque=True):
-	libpcap = libpcap_init()
-	errbuff = ctypes.create_string_buffer(256)
-	src = libpcap.pcap_open_offline(path, errbuff)
-	if not src: raise PcapError(errbuff.value)
-	try:
-		libpcap.pcap_next_ex.errcheck = ft.partial(_chk_read, src)
-		pkt_hdr_p, pkt_p = ctypes.POINTER(
-			c_pcap_pkthdr )(), ctypes.POINTER(ctypes.c_char)()
-		while True:
-			libpcap.pcap_next_ex(src, ctypes.byref(pkt_hdr_p), pkt_p)
-			pkt_hdr = pkt_hdr_p.contents
-			pkt = pkt_p[:pkt_hdr.caplen]
-			yield (dumps(pkt_hdr, pkt) if opaque else (pkt_hdr, pkt))
-	finally: libpcap.pcap_close(src)
-
-def writer(path='-', opaque=True):
-	libpcap = libpcap_init()
-	dst = libpcap.pcap_open_dead(12, 65535) # linktype=DLT_RAW, snaplen
-	if not dst: raise PcapError()
-	libpcap.pcap_dump_open.errcheck = ft.partial(_chk_null, dst)
-	dumper = libpcap.pcap_dump_open(dst, path)
-	try:
-		while True:
-			dump = yield
-			pkt_hdr, pkt = loads(dump) if opaque else dump
-			libpcap.pcap_dump(dumper, ctypes.byref(pkt_hdr), pkt)
-	finally:
-		libpcap.pcap_dump_close(dumper)
-		libpcap.pcap_close(dst)
+def writer(dst, opaque=True, utc=True, snaplen=65535):
+	from struct import pack
+	dst.write(pack( '=IHHiIII',
+		0xa1b2c3d4, 2, 4, 0 if utc else timezone, 0, snaplen, 12 ))
+	pkt_out = None
+	while True:
+		pkt = yield pkt_out
+		pkt = loads(pkt) if opaque else pkt
+		pkt_len = len(pkt.dump)
+		pkt = pack('=IIII', pkt.ts_s, pkt.ts_us, pkt_len, pkt.len or pkt_len), pkt.dump
+		pkt_out = sum(it.imap(len, pkt))
+		for pkt in pkt: dst.write(pkt)

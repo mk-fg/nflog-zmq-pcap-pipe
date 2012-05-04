@@ -38,28 +38,33 @@ def main():
 	try:
 		with closing(context.socket(zmq.PULL)) as src:
 			src.bind(optz.src)
+			buff = None
 
 			while True:
-				try:
-					with open(optz.dst, 'wb') as dst:
-						os.dup2(dst.fileno(), 1)
-						pcap_dst = pcap.writer()
-						next(pcap_dst)
-						log.debug('(Re-)opened destination path')
+				with open(optz.dst, 'wb', 0) as dst:
+					pcap_dst = pcap.writer(dst)
+					next(pcap_dst)
+					log.debug('(Re-)opened destination path')
 
-						while True:
+					while True:
+						if not buff:
 							buff = src.recv()
 							while src.getsockopt(zmq.RCVMORE): buff += src.recv()
 
-							if shaper:
-								for pkt in shaper.send(buff): pcap_dst.send(pkt)
-							else: pcap_dst.send(buff)
-
 							if statsd:
-								statsd.send('raw_out.pkt')
-								statsd.send(('raw_out.bytes', len(buff)))
-				except pcap.PcapError as err:
-					log.exception('Error from libpcap')
+								statsd.send('raw_in.pkt')
+								statsd.send('raw_in.bytes', len(buff))
+							buff = shaper.send(buff) if shaper else [buff]
+
+						try:
+							pkt_len = 0
+							for pkt in buff: pkt_len += pcap_dst.send(pkt)
+						except IOError: break
+
+						if statsd:
+							statsd.send('raw_out.pkt', len(buff))
+							statsd.send('raw_out.bytes', pkt_len)
+						buff = None
 
 				if not optz.reopen: break
 				sleep(1)
