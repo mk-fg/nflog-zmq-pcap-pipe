@@ -44,4 +44,4 @@ setup(
 		'console_scripts': [
 			'{} = nflog_zmq_pcap_pipe.{}:main'.format(name, name.replace('-', '_'))
 			for name in [ 'nflog-zmq-send', 'nflog-zmq-compress',
-				'nflog-zmq-decompress', 'nflog-pcap-recv' ] ] } )
+				'nflog-zmq-decompress', 'nflog-pcap-recv', 'nflog-pcap-query' ] ] } )

@@ -31,9 +31,9 @@ def loads(dump):
 	return Packet(ts_s, ts_us, pkt_len, pkt)
 
 
-def writer(dst, opaque=True, utc=True, snaplen=65535):
+def writer(write, opaque=True, utc=True, snaplen=65535):
 	from struct import pack
-	dst.write(pack( '=IHHiIII',
+	write(pack( '=IHHiIII',
 		0xa1b2c3d4, 2, 4, 0 if utc else timezone, 0, snaplen, 12 ))
 	pkt_out = None
 	while True:
@@ -42,4 +42,4 @@ def writer(dst, opaque=True, utc=True, snaplen=65535):
 		pkt_len = len(pkt.dump)
 		pkt = pack('=IIII', pkt.ts_s, pkt.ts_us, pkt_len, pkt.len or pkt_len), pkt.dump
 		pkt_out = sum(it.imap(len, pkt))
-		for pkt in pkt: dst.write(pkt)
+		for pkt in pkt: write(pkt)

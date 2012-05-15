@@ -4,7 +4,7 @@ from __future__ import print_function
 
 def main():
 	from contextlib import closing
-	import os, errno, logging, nflog, pcap, metrics, shaper
+	import os, logging, nflog, pcap, metrics, shaper
 
 	import argparse
 	parser = argparse.ArgumentParser(description='Pipe nflog packet stream to zeromq.')
@@ -87,7 +87,7 @@ def main():
 
 				try: dst.send(pkt, zmq.NOBLOCK)
 				except zmq.ZMQError as err:
-					if err.errno != errno.EAGAIN: raise
+					if err.errno != zmq.EAGAIN: raise
 
 	finally:
 		log.debug('Finishing')
