@@ -3,9 +3,10 @@
 from __future__ import print_function
 
 def main():
+	import itertools as it, operator as op, functools as ft
 	from time import sleep
 	from collections import deque
-	import os, logging, pcap, metrics, shaper, functools
+	import os, logging, pcap, metrics, shaper
 
 	import argparse
 	parser = argparse.ArgumentParser(
@@ -76,11 +77,9 @@ def main():
 
 				while True:
 					if not buff:
-						(sock, ev), = zmq_poll.poll()
-
-						# Break from main activity to send traffic dump
-						if sock is bif:
-							pcap_bif = pcap.writer(functools.partial(bif.send, flags=zmq.SNDMORE))
+						if bif in it.imap(op.itemgetter(0), zmq_poll.poll()):
+							# Break from main activity to send traffic dump
+							pcap_bif = pcap.writer(ft.partial(bif.send, flags=zmq.SNDMORE))
 							try:
 								bif.recv() # contents aren't used
 								next(pcap_bif)
