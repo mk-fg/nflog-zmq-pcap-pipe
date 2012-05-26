@@ -8,12 +8,12 @@ pkg_root = os.path.dirname(__file__)
 setup(
 
 	name = 'nflog-zmq-pcap-pipe',
-	version = '12.05.4',
+	version = '12.05.5',
 	author = 'Mike Kazantsev',
 	author_email = 'mk.fraggod@gmail.com',
 	license = 'WTFPL',
 	keywords = 'nflog pcap zeromq traffic analysis ids',
-	url = 'http://github.com/mk-fg/graphite-metrics',
+	url = 'http://github.com/mk-fg/nflog-zmq-pcap-pipe',
 
 	description = 'Tool to collect nflog and pipe it to a pcap stream/file'
 		' over network (0mq) for real-time (or close to that) analysis',
