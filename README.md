@@ -132,3 +132,10 @@ Why ctypes (and not, say, [nflog-bindings](https://www.wzdftpd.net/redmine/proje
   nflog-bindings-based implementation in git-log).
 * No extra deps, consistency.
 * Better support in non-cPython.
+
+There's a very similar bindings module in
+[scapy-nflog-capture](https://github.com/mk-fg/scapy-nflog-capture), based on
+cffi instead of ctypes that should be much more segfault-free and future-proof
+than the one used here.
+If you experience any issues with the current module (like segfault right on
+start), try swapping nflog.py for that one.
