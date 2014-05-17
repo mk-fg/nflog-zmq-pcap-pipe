@@ -25,7 +25,7 @@ def main():
 			' flush timeout ("timeout", default: nlbufsiz / 5).')
 	parser.add_argument('--zmq-buffer',
 		type=int, metavar='msg_count',
-		help='ZMQ_HWM for the socket - number of packets to'
+		help='ZMQ_SNDHWM for the socket - number of packets to'
 			' buffer in RAM before blocking (default: qthresh / 10).')
 
 	parser.add_argument('--debug', action='store_true', help='Verbose operation mode.')
@@ -69,7 +69,7 @@ def main():
 
 	try:
 		with closing(context.socket(zmq.PUSH)) as dst:
-			dst.setsockopt(zmq.HWM, optz.zmq_buffer)
+			dst.setsockopt(zmq.SNDHWM, optz.zmq_buffer)
 			dst.setsockopt(zmq.LINGER, 0) # it's lossy either way
 			dst.connect(optz.dst)
 

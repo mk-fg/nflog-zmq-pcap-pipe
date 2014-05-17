@@ -53,7 +53,7 @@ def main():
 	try:
 		src = context.socket(zmq.PULL)
 		src.bind(optz.src)
-		zmq_poll = zmq.core.Poller()
+		zmq_poll = zmq.Poller()
 		zmq_poll.register(src, zmq.POLLIN)
 
 		if optz.buffer_interface and optz.buffer_window:

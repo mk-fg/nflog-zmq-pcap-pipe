@@ -38,9 +38,9 @@ All the source/destination sockets are [ZeroMQ](http://zeromq.org/) endpoints.
 For syntax of these, see [zeromq docs](http://api.zeromq.org/2-2:zmq-connect).
 
 If nothing receives the flow on the other side of the pipe (or has any kind of
-temporary network problems), packets are buffered up to "--zmq-buffer" (ZMQ_HWM)
-count and just dropped afterwards - overall goal is to make the channel as
-robust and easy-to-maintain as possible, and zeromq helps a lot here.
+temporary network problems), packets are buffered up to "--zmq-buffer"
+(ZMQ_SNDHWM) count and just dropped afterwards - overall goal is to make the
+channel as robust and easy-to-maintain as possible, and zeromq helps a lot here.
 
 Multiple senders (possibly from multiple hosts) can be connected to one
 receiver.

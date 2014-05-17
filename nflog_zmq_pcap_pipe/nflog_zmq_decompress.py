@@ -15,7 +15,7 @@ def main():
 	parser.add_argument('dst', help='ZMQ socket address to relay data to.')
 	parser.add_argument('--zmq-buffer',
 		type=int, metavar='msg_count', default=50,
-		help='ZMQ_HWM for the sending socket - number of'
+		help='ZMQ_SNDHWM for the sending socket - number of'
 			' packets to buffer in RAM before blocking (default: %(default)s).')
 	parser.add_argument('--debug', action='store_true', help='Verbose operation mode.')
 	metrics.add_statsd_optz(parser)
@@ -38,7 +38,7 @@ def main():
 		with closing(context.socket(zmq.PULL)) as src,\
 				closing(context.socket(zmq.PUSH)) as dst:
 			src.bind(optz.src)
-			dst.setsockopt(zmq.HWM, optz.zmq_buffer)
+			dst.setsockopt(zmq.SNDHWM, optz.zmq_buffer)
 			dst.setsockopt(zmq.LINGER, 0) # it's lossy either way
 			dst.connect(optz.dst)
 
