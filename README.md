@@ -96,6 +96,20 @@ by default, see --statsd-* options.
 
 Probably a bit broken at the moment, fixes are welcome.
 
+##### libnflog settings, warnings
+
+Various important libnflog settings are exposed in nflog_zmq_send.py cli and
+can/should be adjusted for particular use-case.
+
+For instance, if something like this appears in the logs occasionally:
+
+	WARNING:nflog:nlbufsiz seem to be insufficient to hold unprocessed packets,
+	  consider raising it via corresponding function keyword
+
+Option --libnflog-nlbufsiz should probably be increased or maybe qthresh/timeout
+adjusted, if it's a bursts in traffic, otherwise it might be the case that
+script just can't keep up with traffic (i.e. hovering at 100% cpu core usage).
+
 
 Requirements
 --------------------
