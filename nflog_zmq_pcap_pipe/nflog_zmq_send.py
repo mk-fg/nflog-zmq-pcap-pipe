@@ -81,6 +81,7 @@ def main():
 					statsd.send(('raw_in.bytes', len(pkt)))
 
 				pkt = pcap.construct(pkt, pkt_len=pkt_len, ts=ts)
+				if pkt is None: continue
 				if shaper:
 					pkt = shaper.send(pkt)
 					if pkt is None: continue

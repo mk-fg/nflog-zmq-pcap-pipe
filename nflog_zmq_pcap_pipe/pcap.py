@@ -4,7 +4,7 @@ from __future__ import print_function
 import itertools as it, operator as op, functools as ft
 from time import time, timezone
 from collections import namedtuple
-import xdrlib
+import xdrlib, logging
 
 'Simple pcap generator'
 
@@ -16,10 +16,16 @@ def construct(pkt, pkt_len=None, ts=None):
 	ts = ts or time()
 	ts_sec = int(ts)
 	ts_usec = int((ts - ts_sec) * 1e6)
+	metadata = [ts_sec, ts_usec, pkt_len or 0]
 	dump = xdrlib.Packer()
-	dump.pack_farray(3, [ ts_sec,
-		ts_usec, pkt_len or 0 ], dump.pack_uint)
-	dump.pack_bytes(pkt)
+	try:
+		dump.pack_farray(3, metadata, dump.pack_uint)
+		dump.pack_bytes(pkt)
+	except xdrlib.Error as err:
+		logging.getLogger('pcap_serializer')\
+			.exception( 'Failed to serialize packet (metadata: %r,'
+				' bytes: %s), skipping: %s %s', metadata, len(pkt), type(err), err )
+		return
 	return dump.get_buffer()
 
 
